@@ -19,6 +19,16 @@ function getDistanceMetres(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function getMinutesAgo(dateStr: string): number {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+}
+
+function formatMinutesAgo(mins: number): string {
+  if (mins < 1) return 'just now';
+  if (mins === 1) return '1 min ago';
+  return `${mins} mins ago`;
+}
+
 export default function ParkedScreen() {
   const navigation = useNavigation();
   const router = useRouter();
@@ -30,6 +40,8 @@ export default function ParkedScreen() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertDistance, setAlertDistance] = useState(0);
+  const [alertMinutesAgo, setAlertMinutesAgo] = useState(0);
+  const [alertIsRecent, setAlertIsRecent] = useState(false);
   const pulse = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const alertPulse = useRef(new Animated.Value(1)).current;
@@ -79,13 +91,19 @@ export default function ParkedScreen() {
     }
   }, [alertVisible]);
 
+  // Save parked session and check for recent reports
   useEffect(() => {
     if (!isActive || !carLocation) return;
     const radiusMetres = parseInt(selectedRadius.replace('m', ''));
+
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // Deactivate existing sessions
       await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
+
+      // Create new session
       const { data } = await supabase
         .from('parked_sessions')
         .insert({
@@ -98,6 +116,37 @@ export default function ParkedScreen() {
         .select()
         .single();
       if (data) setSessionId(data.id);
+
+      // Check for recent warden reports in last 30 mins
+      const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: recentReports } = await supabase
+        .from('warden_reports')
+        .select('latitude, longitude, created_at')
+        .gte('created_at', thirtyMinsAgo)
+        .order('created_at', { ascending: false });
+
+      if (recentReports) {
+        for (const report of recentReports) {
+          const distance = getDistanceMetres(
+            carLocation.latitude,
+            carLocation.longitude,
+            report.latitude,
+            report.longitude
+          );
+          if (distance <= radiusMetres) {
+            const minsAgo = getMinutesAgo(report.created_at);
+            setAlertDistance(Math.round(distance));
+            setAlertMinutesAgo(minsAgo);
+            setAlertIsRecent(true);
+            setAlertVisible(true);
+            sendLocalNotification(
+              '⚠️ RECENT WARDEN SIGHTING',
+              `A warden was spotted ${Math.round(distance)}m away, ${formatMinutesAgo(minsAgo)}`
+            );
+            break;
+          }
+        }
+      }
     })();
   }, [isActive, carLocation, selectedRadius]);
 
@@ -106,6 +155,7 @@ export default function ParkedScreen() {
     supabase.from('parked_sessions').update({ is_active: false }).eq('id', sessionId);
   }, [isActive]);
 
+  // Real-time subscription
   useEffect(() => {
     if (!isActive || !carLocation) return;
     const radiusMetres = parseInt(selectedRadius.replace('m', ''));
@@ -115,17 +165,18 @@ export default function ParkedScreen() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'warden_reports' },
         (payload) => {
-          console.log('WARDEN REPORT RECEIVED:', payload);
-          const { latitude, longitude } = payload.new;
+          const { latitude, longitude, created_at } = payload.new;
           const distance = getDistanceMetres(
             carLocation.latitude,
             carLocation.longitude,
             latitude,
             longitude
           );
-          console.log('DISTANCE:', distance, 'RADIUS:', radiusMetres);
           if (distance <= radiusMetres) {
+            const minsAgo = getMinutesAgo(created_at ?? new Date().toISOString());
             setAlertDistance(Math.round(distance));
+            setAlertMinutesAgo(minsAgo);
+            setAlertIsRecent(false);
             setAlertVisible(true);
             sendLocalNotification(
               '🚨 WARDEN SPOTTED',
@@ -147,12 +198,27 @@ export default function ParkedScreen() {
 
       <Modal visible={alertVisible} transparent animationType="fade">
         <View style={styles.alertOverlay}>
-          <Animated.View style={[styles.alertBox, { opacity: alertPulse }]}>
-            <Text style={styles.alertEmoji}>🚨</Text>
-            <Text style={styles.alertTitle}>WARDEN SPOTTED</Text>
+          <Animated.View style={[
+            styles.alertBox,
+            alertIsRecent ? styles.alertBoxRecent : styles.alertBoxLive,
+            { opacity: alertPulse }
+          ]}>
+            <Text style={styles.alertEmoji}>{alertIsRecent ? '⚠️' : '🚨'}</Text>
+            <Text style={[styles.alertTitle, alertIsRecent && styles.alertTitleRecent]}>
+              {alertIsRecent ? 'RECENT SIGHTING' : 'WARDEN SPOTTED'}
+            </Text>
             <Text style={styles.alertDistance}>{alertDistance}m away</Text>
-            <Text style={styles.alertSub}>A warden has been reported near your car!</Text>
-            <TouchableOpacity style={styles.alertButton} onPress={() => setAlertVisible(false)} activeOpacity={0.8}>
+            <Text style={styles.alertTime}>{formatMinutesAgo(alertMinutesAgo)}</Text>
+            <Text style={styles.alertSub}>
+              {alertIsRecent
+                ? 'A warden was spotted near this location recently.'
+                : 'A warden has been reported near your car!'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.alertButton, alertIsRecent && styles.alertButtonRecent]}
+              onPress={() => setAlertVisible(false)}
+              activeOpacity={0.8}
+            >
               <Text style={styles.alertButtonText}>GOT IT</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -243,12 +309,17 @@ export default function ParkedScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
   alertOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  alertBox: { backgroundColor: '#1A0000', borderWidth: 2, borderColor: '#E63946', borderRadius: 16, padding: 32, alignItems: 'center', gap: 12, width: '100%' },
+  alertBox: { borderWidth: 2, borderRadius: 16, padding: 32, alignItems: 'center', gap: 12, width: '100%' },
+  alertBoxLive: { backgroundColor: '#1A0000', borderColor: '#E63946' },
+  alertBoxRecent: { backgroundColor: '#1A1200', borderColor: '#FFD700' },
   alertEmoji: { fontSize: 64 },
   alertTitle: { fontSize: 36, fontWeight: '900', color: '#E63946', letterSpacing: 6 },
+  alertTitleRecent: { color: '#FFD700' },
   alertDistance: { fontSize: 48, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
+  alertTime: { fontSize: 18, fontWeight: '700', color: '#888888', letterSpacing: 2 },
   alertSub: { fontSize: 14, color: '#888888', letterSpacing: 1, textAlign: 'center' },
   alertButton: { backgroundColor: '#E63946', paddingVertical: 16, paddingHorizontal: 48, borderRadius: 8, marginTop: 8 },
+  alertButtonRecent: { backgroundColor: '#FFD700' },
   alertButtonText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   homeButton: { position: 'absolute', top: 66, left: 24, zIndex: 10 },
   homeIcon: { fontSize: 28, color: '#0D0D0D' },
