@@ -35,13 +35,14 @@ export default function ParkedScreen() {
   const { lat, lng } = useLocalSearchParams<{ lat: string; lng: string }>();
   const [selectedRadius, setSelectedRadius] = useState(DEFAULT_RADIUS);
   const [saveForNext, setSaveForNext] = useState(false);
-  const [isActive, setIsActive] = useState(true);
+  const [isActive, setIsActive] = useState(false);
   const [carLocation, setCarLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertDistance, setAlertDistance] = useState(0);
   const [alertMinutesAgo, setAlertMinutesAgo] = useState(0);
   const [alertIsRecent, setAlertIsRecent] = useState(false);
+  const [loading, setLoading] = useState(true);
   const pulse = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const alertPulse = useRef(new Animated.Value(1)).current;
@@ -50,6 +51,7 @@ export default function ParkedScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
+  // Load car location
   useEffect(() => {
     if (lat && lng) {
       setCarLocation({ latitude: parseFloat(lat), longitude: parseFloat(lng) });
@@ -63,6 +65,29 @@ export default function ParkedScreen() {
     }
   }, [lat, lng]);
 
+  // On mount: check if there's already an active session
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data } = await supabase
+        .from('parked_sessions')
+        .select('id, radius_metres')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+      if (data) {
+        setSessionId(data.id);
+        setIsActive(true);
+        const r = data.radius_metres;
+        const label = `${r}m`;
+        if (RADII.includes(label)) setSelectedRadius(label);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Pulse animation
   useEffect(() => {
     if (isActive) {
       loopRef.current = Animated.loop(
@@ -78,6 +103,7 @@ export default function ParkedScreen() {
     }
   }, [isActive]);
 
+  // Alert pulse animation
   useEffect(() => {
     if (alertVisible) {
       Animated.loop(
@@ -91,71 +117,7 @@ export default function ParkedScreen() {
     }
   }, [alertVisible]);
 
-  // Save parked session and check for recent reports
-  useEffect(() => {
-    if (!isActive || !carLocation) return;
-    const radiusMetres = parseInt(selectedRadius.replace('m', ''));
-
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Deactivate existing sessions
-      await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
-
-      // Create new session
-      const { data } = await supabase
-        .from('parked_sessions')
-        .insert({
-          user_id: user.id,
-          latitude: carLocation.latitude,
-          longitude: carLocation.longitude,
-          radius_metres: radiusMetres,
-          is_active: true,
-        })
-        .select()
-        .single();
-      if (data) setSessionId(data.id);
-
-      // Check for recent warden reports in last 30 mins
-      const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const { data: recentReports } = await supabase
-        .from('warden_reports')
-        .select('latitude, longitude, created_at')
-        .gte('created_at', thirtyMinsAgo)
-        .order('created_at', { ascending: false });
-
-      if (recentReports) {
-        for (const report of recentReports) {
-          const distance = getDistanceMetres(
-            carLocation.latitude,
-            carLocation.longitude,
-            report.latitude,
-            report.longitude
-          );
-          if (distance <= radiusMetres) {
-            const minsAgo = getMinutesAgo(report.created_at);
-            setAlertDistance(Math.round(distance));
-            setAlertMinutesAgo(minsAgo);
-            setAlertIsRecent(true);
-            setAlertVisible(true);
-            sendLocalNotification(
-              '⚠️ RECENT WARDEN SIGHTING',
-              `A warden was spotted ${Math.round(distance)}m away, ${formatMinutesAgo(minsAgo)}`
-            );
-            break;
-          }
-        }
-      }
-    })();
-  }, [isActive, carLocation, selectedRadius]);
-
-  useEffect(() => {
-    if (isActive || !sessionId) return;
-    supabase.from('parked_sessions').update({ is_active: false }).eq('id', sessionId);
-  }, [isActive]);
-
-  // Real-time subscription
+  // Real-time subscription — only while active
   useEffect(() => {
     if (!isActive || !carLocation) return;
     const radiusMetres = parseInt(selectedRadius.replace('m', ''));
@@ -185,13 +147,78 @@ export default function ParkedScreen() {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('REALTIME STATUS:', status);
-      });
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [isActive, carLocation, selectedRadius]);
+
+  const handleActivate = async () => {
+    if (!carLocation) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const radiusMetres = parseInt(selectedRadius.replace('m', ''));
+
+    // Deactivate any existing sessions
+    await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
+
+    // Create new session
+    const { data } = await supabase
+      .from('parked_sessions')
+      .insert({
+        user_id: user.id,
+        latitude: carLocation.latitude,
+        longitude: carLocation.longitude,
+        radius_metres: radiusMetres,
+        is_active: true,
+      })
+      .select()
+      .single();
+    if (data) setSessionId(data.id);
+
+    setIsActive(true);
+
+    // Check history once on activation
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: recentReports } = await supabase
+      .from('warden_reports')
+      .select('latitude, longitude, created_at')
+      .gte('created_at', thirtyMinsAgo)
+      .order('created_at', { ascending: false });
+
+    if (recentReports) {
+      for (const report of recentReports) {
+        const distance = getDistanceMetres(
+          carLocation.latitude,
+          carLocation.longitude,
+          report.latitude,
+          report.longitude
+        );
+        if (distance <= radiusMetres) {
+          const minsAgo = getMinutesAgo(report.created_at);
+          setAlertDistance(Math.round(distance));
+          setAlertMinutesAgo(minsAgo);
+          setAlertIsRecent(true);
+          setAlertVisible(true);
+          sendLocalNotification(
+            '⚠️ RECENT WARDEN SIGHTING',
+            `A warden was spotted ${Math.round(distance)}m away, ${formatMinutesAgo(minsAgo)}`
+          );
+          break;
+        }
+      }
+    }
+  };
+
+  const handleDeactivate = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
+    setIsActive(false);
+    setSessionId(null);
+  };
+
+  if (loading) {
+    return <SafeAreaView style={styles.container} />;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -219,14 +246,14 @@ export default function ParkedScreen() {
               onPress={() => setAlertVisible(false)}
               activeOpacity={0.8}
             >
-              <Text style={styles.alertButtonText}>GOT IT</Text>
+              <Text style={[styles.alertButtonText, alertIsRecent && styles.alertButtonTextRecent]}>GOT IT</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
       </Modal>
 
-      <TouchableOpacity style={styles.homeButton} onPress={() => router.push('/')} activeOpacity={0.7}>
-        <Text style={styles.homeIcon}>⌂</Text>
+      <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')} activeOpacity={0.7}>
+        <Text style={styles.backText}>BACK</Text>
       </TouchableOpacity>
 
       <View style={styles.doubleYellow}>
@@ -293,7 +320,7 @@ export default function ParkedScreen() {
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.deactivateButton, !isActive && styles.activateButton]}
-          onPress={() => setIsActive(!isActive)}
+          onPress={isActive ? handleDeactivate : handleActivate}
           activeOpacity={0.8}
         >
           <Text style={[styles.deactivateText, !isActive && styles.activateText]}>
@@ -321,8 +348,9 @@ const styles = StyleSheet.create({
   alertButton: { backgroundColor: '#E63946', paddingVertical: 16, paddingHorizontal: 48, borderRadius: 8, marginTop: 8 },
   alertButtonRecent: { backgroundColor: '#FFD700' },
   alertButtonText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
-  homeButton: { position: 'absolute', top: 66, left: 24, zIndex: 10 },
-  homeIcon: { fontSize: 28, color: '#0D0D0D' },
+  alertButtonTextRecent: { color: '#0D0D0D' },
+  backButton: { position: 'absolute', top: 80, left: 24, zIndex: 10 },
+  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   doubleYellow: { marginTop: 72 },
   yellowLine: { width: '100%', height: 30, backgroundColor: '#FFD700' },
   yellowGap: { height: 18, backgroundColor: '#0D0D0D' },

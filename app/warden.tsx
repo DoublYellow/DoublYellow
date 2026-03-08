@@ -62,7 +62,6 @@ export default function WardenScreen() {
 
     const points = photoVerified ? 100 : 50;
 
-    // Insert warden report
     await supabase.from('warden_reports').insert({
       user_id: user.id,
       latitude: pinCoord.latitude,
@@ -71,16 +70,13 @@ export default function WardenScreen() {
       points_awarded: points,
     });
 
-    // Increment points using RPC
     await supabase.rpc('increment_points', {
       user_id: user.id,
       amount: points,
     });
 
-    // Check badges
     const earned: string[] = [];
 
-    // Get total report count
     const { count: reportCount } = await supabase
       .from('warden_reports')
       .select('*', { count: 'exact', head: true })
@@ -88,7 +84,6 @@ export default function WardenScreen() {
 
     if (reportCount === 1) earned.push('FIRST ALERT');
 
-    // Check photo badge
     if (photoVerified) {
       const { count: photoCount } = await supabase
         .from('warden_reports')
@@ -127,18 +122,16 @@ export default function WardenScreen() {
   return (
     <SafeAreaView style={styles.container}>
 
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>WARDEN SPOTTED</Text>
           <Text style={styles.headerSub}>Drop a pin where you saw them</Text>
         </View>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Text style={styles.homeIcon}>⌂</Text>
+          <Text style={styles.backText}>← BACK</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Map */}
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
@@ -170,7 +163,6 @@ export default function WardenScreen() {
         )}
       </View>
 
-      {/* Photo verify */}
       <TouchableOpacity
         style={[styles.photoButton, photoVerified && styles.photoButtonVerified]}
         onPress={handlePhotoVerify}
@@ -188,7 +180,6 @@ export default function WardenScreen() {
         {photoVerified && <Text style={styles.photoBonusTag}>BONUS</Text>}
       </TouchableOpacity>
 
-      {/* Submit */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.submitButton, (!pinCoord || loading) && styles.submitButtonDisabled]}
@@ -219,10 +210,7 @@ const darkMapStyle = [
 ];
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0D0D0D',
-  },
+  container: { flex: 1, backgroundColor: '#0D0D0D' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -231,9 +219,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 12,
   },
-  headerLeft: {
-    gap: 4,
-  },
+  headerLeft: { gap: 4 },
   headerTitle: {
     fontSize: 28,
     fontWeight: '900',
@@ -245,9 +231,11 @@ const styles = StyleSheet.create({
     color: '#666666',
     letterSpacing: 1,
   },
-  homeIcon: {
-    fontSize: 24,
-    color: '#FFFFFF',
+  backText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#666666',
+    letterSpacing: 2,
   },
   mapContainer: {
     flex: 1,
@@ -257,9 +245,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333333',
   },
-  map: {
-    flex: 1,
-  },
+  map: { flex: 1 },
   mapHint: {
     position: 'absolute',
     bottom: 16,
@@ -294,32 +280,22 @@ const styles = StyleSheet.create({
     borderColor: '#00C853',
     backgroundColor: '#0A1F0A',
   },
-  photoIcon: {
-    fontSize: 24,
-    color: '#00C853',
-  },
-  photoTextWrapper: {
-    flex: 1,
-  },
+  photoIcon: { fontSize: 24, color: '#00C853' },
+  photoTextWrapper: { flex: 1 },
   photoLabel: {
     fontSize: 14,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 2,
   },
-  photoLabelVerified: {
-    color: '#00C853',
-  },
+  photoLabelVerified: { color: '#00C853' },
   photoOptional: {
     fontSize: 11,
     color: '#555555',
     letterSpacing: 1,
     marginTop: 2,
   },
-  photoPointsLabel: {
-    color: '#00C853',
-    fontWeight: '700',
-  },
+  photoPointsLabel: { color: '#00C853', fontWeight: '700' },
   photoBonusTag: {
     fontSize: 10,
     fontWeight: '900',
@@ -331,10 +307,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  footer: {
-    padding: 16,
-    paddingBottom: 24,
-  },
+  footer: { padding: 16, paddingBottom: 24 },
   submitButton: {
     backgroundColor: '#FFD700',
     paddingVertical: 18,
@@ -352,9 +325,7 @@ const styles = StyleSheet.create({
     color: '#0D0D0D',
     letterSpacing: 4,
   },
-  submitTextDisabled: {
-    color: '#444444',
-  },
+  submitTextDisabled: { color: '#444444' },
   successContainer: {
     flex: 1,
     backgroundColor: '#0D0D0D',
@@ -362,20 +333,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  successEmoji: {
-    fontSize: 64,
-  },
+  successEmoji: { fontSize: 64 },
   successTitle: {
     fontSize: 52,
     fontWeight: '900',
     color: '#FFD700',
     letterSpacing: 8,
   },
-  successSub: {
-    fontSize: 15,
-    color: '#888888',
-    letterSpacing: 1,
-  },
+  successSub: { fontSize: 15, color: '#888888', letterSpacing: 1 },
   successPoints: {
     fontSize: 36,
     fontWeight: '900',
