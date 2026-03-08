@@ -35,16 +35,19 @@ export default function RootLayout() {
   }, [session, initialized, segments]);
 
   useEffect(() => {
-    if (session) {
-      registerForPushNotifications().then((token) => {
-        if (token) {
-          console.log('PUSH TOKEN:', token);
-          // Save token to Supabase profile for later use
-          supabase.from('profiles').update({ push_token: token }).eq('id', session.user.id);
-        }
-      });
-    }
-  }, [session]);
+  if (session) {
+    registerForPushNotifications().then(async (token) => {
+      if (token) {
+        console.log('PUSH TOKEN:', token);
+        const { error } = await supabase
+  .from('profiles')
+  .update({ push_token: token })
+  .eq('id', session.user.id);
+console.log('PUSH TOKEN SAVE ERROR:', JSON.stringify(error));
+      }
+    });
+  }
+}, [session]);
 
   return (
     <>

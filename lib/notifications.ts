@@ -1,3 +1,4 @@
+import messaging from '@react-native-firebase/messaging';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -12,22 +13,17 @@ Notifications.setNotificationHandler({
 export async function registerForPushNotifications(): Promise<string | null> {
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
-
   if (existingStatus !== 'granted') {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
+  if (finalStatus !== 'granted') return null;
 
-  if (finalStatus !== 'granted') {
-    return null;
-  }
-
-  const token = await Notifications.getExpoPushTokenAsync({
-    projectId: 'dd2c79e2-00ab-4c27-b85f-3eaee7165558',
-  });
+  const fcmToken = await messaging().getToken();
+  console.log('FCM TOKEN:', fcmToken);
 
   if (Platform.OS === 'android') {
-    Notifications.setNotificationChannelAsync('warden-alerts', {
+    await Notifications.setNotificationChannelAsync('warden-alerts', {
       name: 'Warden Alerts',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
@@ -36,16 +32,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
     });
   }
 
-  return token.data;
+  return fcmToken;
 }
 
 export async function sendLocalNotification(title: string, body: string) {
   await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      sound: 'default',
-    },
+    content: { title, body, sound: 'default' },
     trigger: null,
   });
 }
