@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { sendLocalNotification } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
 const RADII = ['50m', '100m', '250m', '500m'];
@@ -126,6 +127,10 @@ export default function ParkedScreen() {
           if (distance <= radiusMetres) {
             setAlertDistance(Math.round(distance));
             setAlertVisible(true);
+            sendLocalNotification(
+              '🚨 WARDEN SPOTTED',
+              `A warden has been reported ${Math.round(distance)}m from your car!`
+            );
           }
         }
       )

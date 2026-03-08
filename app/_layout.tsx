@@ -2,6 +2,7 @@ import { Session } from '@supabase/supabase-js';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { registerForPushNotifications } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
 export default function RootLayout() {
@@ -25,15 +26,25 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!initialized) return;
-
     const inAuthGroup = segments[0] === 'welcome' || segments[0] === 'login' || segments[0] === 'signup';
-
     if (!session && !inAuthGroup) {
       router.replace('/welcome');
     } else if (session && inAuthGroup) {
       router.replace('/');
     }
   }, [session, initialized, segments]);
+
+  useEffect(() => {
+    if (session) {
+      registerForPushNotifications().then((token) => {
+        if (token) {
+          console.log('PUSH TOKEN:', token);
+          // Save token to Supabase profile for later use
+          supabase.from('profiles').update({ push_token: token }).eq('id', session.user.id);
+        }
+      });
+    }
+  }, [session]);
 
   return (
     <>
