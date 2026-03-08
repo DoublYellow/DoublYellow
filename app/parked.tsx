@@ -65,24 +65,38 @@ export default function ParkedScreen() {
     }
   }, [lat, lng]);
 
-  // On mount: check if there's already an active session
+  // On mount: load settings and check for existing active session
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
+
+      // Load default radius from settings
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('default_radius')
+        .eq('user_id', user.id)
+        .single();
+
+      if (settingsData) {
+        setSelectedRadius(`${settingsData.default_radius}m`);
+      }
+
+      // Check for existing active session
       const { data } = await supabase
         .from('parked_sessions')
         .select('id, radius_metres')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .single();
+
       if (data) {
         setSessionId(data.id);
         setIsActive(true);
-        const r = data.radius_metres;
-        const label = `${r}m`;
+        const label = `${data.radius_metres}m`;
         if (RADII.includes(label)) setSelectedRadius(label);
       }
+
       setLoading(false);
     })();
   }, []);
@@ -157,10 +171,8 @@ export default function ParkedScreen() {
     if (!user) return;
     const radiusMetres = parseInt(selectedRadius.replace('m', ''));
 
-    // Deactivate any existing sessions
     await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
 
-    // Create new session
     const { data } = await supabase
       .from('parked_sessions')
       .insert({
@@ -253,7 +265,7 @@ export default function ParkedScreen() {
       </Modal>
 
       <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')} activeOpacity={0.7}>
-        <Text style={styles.backText}>BACK</Text>
+        <Text style={styles.backText}>← BACK</Text>
       </TouchableOpacity>
 
       <View style={styles.doubleYellow}>
@@ -350,7 +362,7 @@ const styles = StyleSheet.create({
   alertButtonText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   alertButtonTextRecent: { color: '#0D0D0D' },
   backButton: { position: 'absolute', top: 80, left: 24, zIndex: 10 },
-  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
+  backText: { fontSize: 12, fontWeight: '700', color: '#0D0D0D', letterSpacing: 2 },
   doubleYellow: { marginTop: 72 },
   yellowLine: { width: '100%', height: 30, backgroundColor: '#FFD700' },
   yellowGap: { height: 18, backgroundColor: '#0D0D0D' },
