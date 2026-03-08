@@ -1,6 +1,7 @@
+import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 type Report = {
@@ -19,15 +20,24 @@ type LeaderboardEntry = {
   isMe: boolean;
 };
 
+type Profile = {
+  username: string;
+  points: number;
+  avatar_url: string | null;
+};
+
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const router = useRouter();
-  const [profile, setProfile] = useState<{ username: string; points: number } | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [reportCount, setReportCount] = useState(0);
   const [photoCount, setPhotoCount] = useState(0);
   const [ranking, setRanking] = useState<number | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -37,16 +47,19 @@ export default function ProfileScreen() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
 
-      // Profile
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('username, points')
+        .select('username, points, avatar_url')
         .eq('id', user.id)
         .single();
-      if (profileData) setProfile(profileData);
 
-      // Reports
+      if (profileData) {
+        setProfile(profileData);
+        setAvatarUrl(profileData.avatar_url ?? null);
+      }
+
       const { data: reportData, count } = await supabase
         .from('warden_reports')
         .select('*', { count: 'exact' })
@@ -56,7 +69,6 @@ export default function ProfileScreen() {
       if (reportData) setReports(reportData);
       setReportCount(count ?? 0);
 
-      // Photo verified count
       const { count: pCount } = await supabase
         .from('warden_reports')
         .select('*', { count: 'exact', head: true })
@@ -64,7 +76,6 @@ export default function ProfileScreen() {
         .eq('photo_verified', true);
       setPhotoCount(pCount ?? 0);
 
-      // Leaderboard — top 10 by points
       const { data: allProfiles } = await supabase
         .from('profiles')
         .select('username, points, id')
@@ -80,7 +91,6 @@ export default function ProfileScreen() {
         }));
         setLeaderboard(entries);
 
-        // Find user's actual rank across all users
         const { count: aboveCount } = await supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true })
@@ -89,6 +99,61 @@ export default function ProfileScreen() {
       }
     })();
   }, []);
+
+  const handleAvatarPress = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (result.canceled || !userId) return;
+
+    setUploadingAvatar(true);
+
+    try {
+      const uri = result.assets[0].uri;
+      const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+      const fileName = `${userId}.${ext}`;
+
+      const response = await fetch(uri);
+      const arrayBuffer = await response.arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, arrayBuffer, {
+          contentType: `image/${ext}`,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.log('UPLOAD ERROR:', JSON.stringify(uploadError));
+        setUploadingAvatar(false);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+      await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', userId);
+
+      setAvatarUrl(publicUrl);
+    } catch (e) {
+      console.log('AVATAR ERROR:', e);
+    }
+
+    setUploadingAvatar(false);
+  };
 
   const level = profile ? Math.floor(profile.points / 100) + 1 : 1;
   const pointsProgress = profile ? profile.points % 100 : 0;
@@ -122,11 +187,28 @@ export default function ProfileScreen() {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         <View style={styles.heroCard}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarLetter}>
-              {profile?.username?.[0]?.toUpperCase() ?? '?'}
-            </Text>
-          </View>
+          <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8} style={styles.avatarWrapper}>
+            {uploadingAvatar ? (
+              <View style={styles.avatarCircle}>
+                <ActivityIndicator color="#0D0D0D" />
+              </View>
+            ) : avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={styles.avatarImage}
+                onError={(e) => console.log('IMAGE ERROR:', e.nativeEvent.error)}
+              />
+            ) : (
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarLetter}>
+                  {profile?.username?.[0]?.toUpperCase() ?? '?'}
+                </Text>
+              </View>
+            )}
+            <View style={styles.avatarEditBadge}>
+              <Text style={styles.avatarEditText}>✎</Text>
+            </View>
+          </TouchableOpacity>
           <Text style={styles.username}>{profile?.username ?? '...'}</Text>
           <Text style={styles.levelLabel}>LEVEL {level} LOOKOUT</Text>
           <View style={styles.progressBar}>
@@ -150,7 +232,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Leaderboard */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>LEADERBOARD</Text>
           <View style={styles.leaderboardCard}>
@@ -239,8 +320,12 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   scroll: { flex: 1 },
   heroCard: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 8 },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFD700', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  avatarWrapper: { marginBottom: 8, position: 'relative' },
+  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFD700', justifyContent: 'center', alignItems: 'center' },
+  avatarImage: { width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: '#FFD700' },
   avatarLetter: { fontSize: 36, fontWeight: '900', color: '#0D0D0D' },
+  avatarEditBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#FFD700', borderRadius: 10, width: 22, height: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#0D0D0D' },
+  avatarEditText: { fontSize: 11, color: '#0D0D0D', fontWeight: '900' },
   username: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   levelLabel: { fontSize: 12, fontWeight: '700', color: '#FFD700', letterSpacing: 3 },
   progressBar: { width: '80%', height: 4, backgroundColor: '#333333', borderRadius: 2, marginTop: 8 },
