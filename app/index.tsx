@@ -1,15 +1,52 @@
-import { useNavigation, useRouter } from 'expo-router';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const [isParkedActive, setIsParkedActive] = useState(false);
+  const pulse = useRef(new Animated.Value(1)).current;
+  const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
+
+  // Check for active parked session every time home screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('parked_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+        setIsParkedActive(!!data);
+      })();
+    }, [])
+  );
+
+  // Flash animation when active
+  useEffect(() => {
+    if (isParkedActive) {
+      loopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 0, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      loopRef.current.start();
+    } else {
+      loopRef.current?.stop();
+      pulse.setValue(1);
+    }
+  }, [isParkedActive]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -18,16 +55,29 @@ export default function HomeScreen() {
       <View style={styles.inner}>
 
         {/* Top half - I've Parked */}
-        <TouchableOpacity style={[styles.half, styles.topHalf]} activeOpacity={0.8} onPress={() => router.push('/parked')}>
-          <View style={styles.lineRow}>
-            <View style={styles.yellowLineRow} />
-            <Text style={styles.roadWord}>I'VE</Text>
-          </View>
-          <View style={styles.lineGap} />
-          <View style={styles.lineRow}>
-            <View style={styles.yellowLineRow} />
-            <Text style={styles.roadWord}>PARKED</Text>
-          </View>
+        <TouchableOpacity
+          style={[styles.half, styles.topHalf, isParkedActive && styles.topHalfActive]}
+          activeOpacity={0.8}
+          onPress={() => router.push('/parked')}
+        >
+          {isParkedActive ? (
+            <Animated.View style={[styles.activatedOverlay, { opacity: pulse }]}>
+              <Text style={styles.activatedText}>ACTIVATED</Text>
+              <Text style={styles.activatedSub}>Tap to manage</Text>
+            </Animated.View>
+          ) : (
+            <>
+              <View style={styles.lineRow}>
+                <View style={styles.yellowLineRow} />
+                <Text style={styles.roadWord}>I'VE</Text>
+              </View>
+              <View style={styles.lineGap} />
+              <View style={styles.lineRow}>
+                <View style={styles.yellowLineRow} />
+                <Text style={styles.roadWord}>PARKED</Text>
+              </View>
+            </>
+          )}
         </TouchableOpacity>
 
         {/* Middle icon bar */}
@@ -99,6 +149,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#0D0D0D',
     paddingHorizontal: 24,
+  },
+  topHalfActive: {
+    backgroundColor: '#E63946',
+    borderColor: '#E63946',
+  },
+  activatedOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activatedText: {
+    fontSize: 52,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 8,
+  },
+  activatedSub: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 3,
   },
   bottomHalf: {
     justifyContent: 'center',

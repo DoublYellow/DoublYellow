@@ -8,8 +8,11 @@
     "scheme": "doublyellow",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": { "supportsTablet": true },
+    "ios": {
+      "supportsTablet": true
+    },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -18,27 +21,51 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "permissions": ["android.permission.RECORD_AUDIO", "android.permission.RECEIVE_BOOT_COMPLETED", "android.permission.VIBRATE"],
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ],
       "package": "com.doubleyellow.DoublYellow"
     },
-    "web": { "output": "static", "favicon": "./assets/images/favicon.png" },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
     "plugins": [
       "expo-router",
       "expo-image-picker",
       "expo-notifications",
-      ["react-native-maps", { "androidGoogleMapsApiKey": "AIzaSyAJvb_0vS-bSuLWHXGzDSzL3yasNLTtWZ4" }],
-      ["expo-splash-screen", {
-        "image": "./assets/images/splash-icon.png",
-        "imageWidth": 200,
-        "resizeMode": "contain",
-        "backgroundColor": "#ffffff",
-        "dark": { "backgroundColor": "#000000" }
-      }]
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyAJvb_0vS-bSuLWHXGzDSzL3yasNLTtWZ4"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging"
     ],
-    "experiments": { "typedRoutes": true, "reactCompiler": true },
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
     "extra": {
       "router": {},
-      "eas": { "projectId": "dd2c79e2-00ab-4c27-b85f-3eaee7165558" }
+      "eas": {
+        "projectId": "dd2c79e2-00ab-4c27-b85f-3eaee7165558"
+      }
     }
   }
 }
