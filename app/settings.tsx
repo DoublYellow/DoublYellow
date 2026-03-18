@@ -236,7 +236,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/privacy')} activeOpacity={0.7}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>📄</Text>
                 <View>
@@ -249,7 +249,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/terms')} activeOpacity={0.7}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>📋</Text>
                 <View>

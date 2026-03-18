@@ -38,6 +38,7 @@ export default function ProfileScreen() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [hasStreak, setHasStreak] = useState(false);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [editedUsername, setEditedUsername] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
@@ -81,6 +82,31 @@ export default function ProfileScreen() {
         .eq('user_id', user.id)
         .eq('photo_verified', true);
       setPhotoCount(pCount ?? 0);
+
+      // 7 Day Streak — check for at least one report on each of the last 7 calendar days
+      const streakStart = new Date();
+      streakStart.setDate(streakStart.getDate() - 6);
+      streakStart.setHours(0, 0, 0, 0);
+      const { data: streakReports } = await supabase
+        .from('warden_reports')
+        .select('created_at')
+        .eq('user_id', user.id)
+        .gte('created_at', streakStart.toISOString());
+      const reportedDays = new Set(
+        (streakReports ?? []).map((r) =>
+          new Date(r.created_at).toLocaleDateString('en-CA') // gives YYYY-MM-DD in local time
+        )
+      );
+      let streak = true;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        if (!reportedDays.has(d.toLocaleDateString('en-CA'))) {
+          streak = false;
+          break;
+        }
+      }
+      setHasStreak(streak);
 
       const { data: allProfiles } = await supabase
         .from('profiles')
@@ -207,8 +233,8 @@ export default function ProfileScreen() {
     { icon: '⚠️', label: 'FIRST ALERT', earned: reportCount >= 1 },
     { icon: '📍', label: 'PINNED', earned: reportCount >= 10 },
     { icon: '📷', label: 'VERIFIED', earned: photoCount >= 1 },
-    { icon: '🔥', label: '7 DAY STREAK', earned: false },
-    { icon: '👑', label: 'TOP LOOKOUT', earned: false },
+    { icon: '🔥', label: '7 DAY STREAK', earned: hasStreak },
+    { icon: '👑', label: 'TOP LOOKOUT', earned: ranking === 1 },
     { icon: '⚡', label: 'RAPID FIRE', earned: reportCount >= 5 },
   ];
 
