@@ -13,7 +13,8 @@ async function getAccessToken(): Promise<string> {
   const pemContents = FCM_PRIVATE_KEY
     .replace('-----BEGIN PRIVATE KEY-----', '')
     .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\s/g, '');
+    .replace(/\\n/g, '')   // handle literal \n from env var storage
+    .replace(/\s/g, '');   // handle actual newlines
 
   const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
 
