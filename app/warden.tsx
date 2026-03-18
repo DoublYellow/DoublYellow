@@ -7,22 +7,52 @@ import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE } from 'react-native-ma
 import { supabase } from '../lib/supabase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CONFETTI_COLORS = ['#FFD700', '#E63946', '#00C853', '#2196F3', '#FF9800', '#FFFFFF'];
-const FALL_COUNT = 30;
+const CONFETTI_COLORS = ['#FFD700', '#FFD700', '#E63946', '#00C853', '#2196F3', '#FF9800', '#E91E63', '#FFFFFF', '#9C27B0', '#FFD700'];
+const FALL_COUNT = 70;
+const BURST_COUNT = 50; // 25 per side
 
-function makeConfettiPieces() {
+function makeFallingPieces() {
   return Array.from({ length: FALL_COUNT }, (_, i) => {
     const startX = Math.random() * SCREEN_WIDTH;
+    const isRect = Math.random() > 0.4;
     return {
-      id: `c-${i}`,
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-      size: 7 + Math.random() * 8,
-      delay: Math.random() * 500,
-      duration: 2000 + Math.random() * 1200,
+      id: `fall-${i}`,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      width: isRect ? 6 + Math.random() * 8 : 8 + Math.random() * 8,
+      height: isRect ? 12 + Math.random() * 10 : 8 + Math.random() * 8,
+      borderRadius: isRect ? 2 : 50,
+      delay: Math.random() * 900,
+      duration: 2400 + Math.random() * 1600,
       startX,
-      targetX: startX + (Math.random() - 0.5) * 100,
-      translateY: new Animated.Value(-60),
+      targetX: startX + (Math.random() - 0.5) * 160,
+      translateY: new Animated.Value(-80),
       translateX: new Animated.Value(startX),
+      opacity: new Animated.Value(1),
+      rotate: new Animated.Value(0),
+    };
+  });
+}
+
+function makeBurstPieces() {
+  return Array.from({ length: BURST_COUNT }, (_, i) => {
+    const fromLeft = i < BURST_COUNT / 2;
+    const startX = fromLeft ? -20 : SCREEN_WIDTH + 20;
+    const targetX = fromLeft
+      ? 40 + Math.random() * (SCREEN_WIDTH * 0.85)
+      : SCREEN_WIDTH - 40 - Math.random() * (SCREEN_WIDTH * 0.85);
+    const startY = SCREEN_HEIGHT * 0.1 + Math.random() * (SCREEN_HEIGHT * 0.45);
+    const targetY = startY + (Math.random() - 0.2) * 400;
+    return {
+      id: `burst-${i}`,
+      startX, startY, targetX, targetY,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      width: 8 + Math.random() * 10,
+      height: Math.random() > 0.4 ? 14 + Math.random() * 10 : 8 + Math.random() * 10,
+      borderRadius: Math.random() > 0.4 ? 2 : 50,
+      delay: Math.random() * 250,
+      duration: 700 + Math.random() * 600,
+      translateX: new Animated.Value(startX),
+      translateY: new Animated.Value(startY),
       opacity: new Animated.Value(1),
       rotate: new Animated.Value(0),
     };
@@ -42,7 +72,8 @@ export default function WardenScreen() {
 
   const RATE_LIMIT_MINUTES = 5;
   const mapRef = useRef<MapView>(null);
-  const confettiPieces = useRef(makeConfettiPieces()).current;
+  const fallingPieces = useRef(makeFallingPieces()).current;
+  const burstPieces = useRef(makeBurstPieces()).current;
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -146,21 +177,41 @@ export default function WardenScreen() {
     setLoading(false);
     setSubmitted(true);
 
-    // Fire confetti
-    confettiPieces.forEach((piece) => {
-      piece.translateY.setValue(-60);
+    // Fire confetti — burst from sides
+    burstPieces.forEach((piece) => {
       piece.translateX.setValue(piece.startX);
+      piece.translateY.setValue(piece.startY);
       piece.opacity.setValue(1);
       piece.rotate.setValue(0);
       setTimeout(() => {
         Animated.parallel([
-          Animated.timing(piece.translateY, { toValue: SCREEN_HEIGHT + 60, duration: piece.duration, useNativeDriver: true }),
           Animated.timing(piece.translateX, { toValue: piece.targetX, duration: piece.duration, useNativeDriver: true }),
+          Animated.timing(piece.translateY, { toValue: piece.targetY, duration: piece.duration, useNativeDriver: true }),
           Animated.timing(piece.rotate, { toValue: 1, duration: piece.duration, useNativeDriver: true }),
-          Animated.timing(piece.opacity, { toValue: 0, duration: piece.duration, delay: piece.duration * 0.6, useNativeDriver: true }),
+          Animated.timing(piece.opacity, { toValue: 0, duration: piece.duration * 0.5, delay: piece.duration * 0.5, useNativeDriver: true }),
         ]).start();
       }, piece.delay);
     });
+
+    // Fire confetti — rain from top (two waves)
+    const fireRain = (delayOffset: number) => {
+      fallingPieces.forEach((piece) => {
+        piece.translateY.setValue(-80);
+        piece.translateX.setValue(piece.startX);
+        piece.opacity.setValue(1);
+        piece.rotate.setValue(0);
+        setTimeout(() => {
+          Animated.parallel([
+            Animated.timing(piece.translateY, { toValue: SCREEN_HEIGHT + 80, duration: piece.duration, useNativeDriver: true }),
+            Animated.timing(piece.translateX, { toValue: piece.targetX, duration: piece.duration, useNativeDriver: true }),
+            Animated.timing(piece.rotate, { toValue: 1, duration: piece.duration, useNativeDriver: true }),
+            Animated.timing(piece.opacity, { toValue: 0, duration: piece.duration * 0.4, delay: piece.duration * 0.6, useNativeDriver: true }),
+          ]).start();
+        }, delayOffset + piece.delay);
+      });
+    };
+    fireRain(0);
+    fireRain(1400); // second wave
 
     setTimeout(() => navigation.goBack(), 3500);
   };
@@ -170,8 +221,8 @@ export default function WardenScreen() {
       <SafeAreaView style={styles.successContainer}>
         {/* Confetti layer */}
         <View style={styles.confettiContainer} pointerEvents="none">
-          {confettiPieces.map((piece) => {
-            const rotation = piece.rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '720deg'] });
+          {fallingPieces.map((piece) => {
+            const rotation = piece.rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '900deg'] });
             return (
               <Animated.View
                 key={piece.id}
@@ -179,12 +230,31 @@ export default function WardenScreen() {
                   position: 'absolute',
                   top: 0,
                   left: piece.startX,
-                  width: piece.size,
-                  height: piece.size,
+                  width: piece.width,
+                  height: piece.height,
                   backgroundColor: piece.color,
-                  borderRadius: 2,
+                  borderRadius: piece.borderRadius,
                   opacity: piece.opacity,
                   transform: [{ translateY: piece.translateY }, { translateX: piece.translateX }, { rotate: rotation }],
+                }}
+              />
+            );
+          })}
+          {burstPieces.map((piece) => {
+            const rotation = piece.rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '540deg'] });
+            return (
+              <Animated.View
+                key={piece.id}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: piece.width,
+                  height: piece.height,
+                  backgroundColor: piece.color,
+                  borderRadius: piece.borderRadius,
+                  opacity: piece.opacity,
+                  transform: [{ translateX: piece.translateX }, { translateY: piece.translateY }, { rotate: rotation }],
                 }}
               />
             );
