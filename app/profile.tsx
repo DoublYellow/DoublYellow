@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 type Report = {
@@ -162,23 +162,10 @@ export default function ProfileScreen() {
     setSavingUsername(false);
   };
 
-  const handleAvatarPress = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-
-    if (result.canceled || !userId) return;
-
+  const uploadAvatarFromUri = async (uri: string) => {
+    if (!userId) return;
     setUploadingAvatar(true);
-
     try {
-      const uri = result.assets[0].uri;
       const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
       const fileName = `${userId}.${ext}`;
 
@@ -223,6 +210,43 @@ export default function ProfileScreen() {
     }
 
     setUploadingAvatar(false);
+  };
+
+  const handleAvatarPress = () => {
+    Alert.alert(
+      'Profile Photo',
+      'Choose how to set your photo',
+      [
+        {
+          text: '📷  Take Photo',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') return;
+            const result = await ImagePicker.launchCameraAsync({
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+            });
+            if (!result.canceled) uploadAvatarFromUri(result.assets[0].uri);
+          },
+        },
+        {
+          text: '🖼️  Choose from Gallery',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') return;
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+            });
+            if (!result.canceled) uploadAvatarFromUri(result.assets[0].uri);
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const level = profile ? Math.floor(profile.points / 100) + 1 : 1;
