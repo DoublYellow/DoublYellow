@@ -15,6 +15,9 @@ export default function WardenScreen() {
   const [loading, setLoading] = useState(false);
   const [pointsEarned, setPointsEarned] = useState(0);
   const [newBadges, setNewBadges] = useState<string[]>([]);
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+
+  const RATE_LIMIT_MINUTES = 5;
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
@@ -53,11 +56,32 @@ export default function WardenScreen() {
   const handleSubmit = async () => {
     if (!pinCoord) return;
     setLoading(true);
+    setRateLimitMessage(null);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setLoading(false);
       return;
+    }
+
+    // Rate limit check — block if last report was within RATE_LIMIT_MINUTES
+    const { data: lastReport } = await supabase
+      .from('warden_reports')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (lastReport) {
+      const secondsSince = (Date.now() - new Date(lastReport.created_at).getTime()) / 1000;
+      const limitSeconds = RATE_LIMIT_MINUTES * 60;
+      if (secondsSince < limitSeconds) {
+        const minsLeft = Math.ceil((limitSeconds - secondsSince) / 60);
+        setRateLimitMessage(`You can report again in ${minsLeft} minute${minsLeft === 1 ? '' : 's'}.`);
+        setLoading(false);
+        return;
+      }
     }
 
     const points = photoVerified ? 100 : 50;
@@ -181,6 +205,9 @@ export default function WardenScreen() {
       </TouchableOpacity>
 
       <View style={styles.footer}>
+        {rateLimitMessage && (
+          <Text style={styles.rateLimitText}>⏱ {rateLimitMessage}</Text>
+        )}
         <TouchableOpacity
           style={[styles.submitButton, (!pinCoord || loading) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
@@ -307,7 +334,14 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  footer: { padding: 16, paddingBottom: 24 },
+  footer: { padding: 16, paddingBottom: 24, gap: 10 },
+  rateLimitText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#E63946',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
   submitButton: {
     backgroundColor: '#FFD700',
     paddingVertical: 18,

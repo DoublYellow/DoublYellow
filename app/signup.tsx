@@ -22,6 +22,21 @@ export default function SignUpScreen() {
       setError('Please fill in all fields.');
       return;
     }
+
+    const usernameClean = username.trim();
+    if (usernameClean.length < 3) {
+      setError('Username must be at least 3 characters.');
+      return;
+    }
+    if (usernameClean.includes('@')) {
+      setError('Username cannot be an email address.');
+      return;
+    }
+    if (usernameClean.includes(' ')) {
+      setError('Username cannot contain spaces.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -42,9 +57,11 @@ export default function SignUpScreen() {
     }
 
     if (data.user) {
+      // Use upsert so that even if a DB trigger auto-created a profile row,
+      // the user's chosen username always wins.
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({ id: data.user.id, username, points: 0 });
+        .upsert({ id: data.user.id, username: usernameClean, points: 0 }, { onConflict: 'id' });
 
       if (profileError) {
         setLoading(false);

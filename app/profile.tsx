@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 type Report = {
@@ -38,6 +38,10 @@ export default function ProfileScreen() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [editedUsername, setEditedUsername] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -57,7 +61,9 @@ export default function ProfileScreen() {
 
       if (profileData) {
         setProfile(profileData);
-        setAvatarUrl(profileData.avatar_url ?? null);
+        // Add cache-buster so the latest avatar always loads fresh
+        const url = profileData.avatar_url;
+        setAvatarUrl(url ? `${url}?t=${Date.now()}` : null);
       }
 
       const { data: reportData, count } = await supabase
@@ -100,6 +106,36 @@ export default function ProfileScreen() {
     })();
   }, []);
 
+  const handleSaveUsername = async () => {
+    const trimmed = editedUsername.trim();
+    setUsernameError('');
+    if (trimmed.length < 3) {
+      setUsernameError('Must be at least 3 characters.');
+      return;
+    }
+    if (trimmed.includes('@')) {
+      setUsernameError('Username cannot be an email address.');
+      return;
+    }
+    if (trimmed.includes(' ')) {
+      setUsernameError('Username cannot contain spaces.');
+      return;
+    }
+    if (!userId) return;
+    setSavingUsername(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ username: trimmed })
+      .eq('id', userId);
+    if (!error) {
+      setProfile((prev) => prev ? { ...prev, username: trimmed } : prev);
+      setIsEditingUsername(false);
+    } else {
+      setUsernameError('Could not save. Try again.');
+    }
+    setSavingUsername(false);
+  };
+
   const handleAvatarPress = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return;
@@ -140,14 +176,22 @@ export default function ProfileScreen() {
         .from('avatars')
         .getPublicUrl(fileName);
 
-      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      const cleanUrl = urlData.publicUrl;
+      const displayUrl = `${cleanUrl}?t=${Date.now()}`;
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: cleanUrl })
         .eq('id', userId);
 
-      setAvatarUrl(publicUrl);
+      if (updateError) {
+        console.log('PROFILE UPDATE ERROR:', JSON.stringify(updateError));
+        setUploadingAvatar(false);
+        return;
+      }
+
+      // Use timestamped URL locally to force the image cache to refresh
+      setAvatarUrl(displayUrl);
     } catch (e) {
       console.log('AVATAR ERROR:', e);
     }
@@ -209,7 +253,47 @@ export default function ProfileScreen() {
               <Text style={styles.avatarEditText}>✎</Text>
             </View>
           </TouchableOpacity>
-          <Text style={styles.username}>{profile?.username ?? '...'}</Text>
+          {isEditingUsername ? (
+            <View style={styles.usernameEditWrapper}>
+              <TextInput
+                style={styles.usernameInput}
+                value={editedUsername}
+                onChangeText={(t) => { setEditedUsername(t); setUsernameError(''); }}
+                autoCapitalize="none"
+                autoFocus
+                maxLength={20}
+                placeholderTextColor="#555555"
+                placeholder="your username"
+              />
+              {usernameError ? <Text style={styles.usernameErrorText}>{usernameError}</Text> : null}
+              <View style={styles.usernameEditButtons}>
+                <TouchableOpacity
+                  style={styles.usernameCancelBtn}
+                  onPress={() => { setIsEditingUsername(false); setUsernameError(''); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.usernameCancelText}>CANCEL</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.usernameSaveBtn, savingUsername && { opacity: 0.5 }]}
+                  onPress={handleSaveUsername}
+                  disabled={savingUsername}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.usernameSaveText}>{savingUsername ? 'SAVING...' : 'SAVE'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => { setEditedUsername(profile?.username ?? ''); setIsEditingUsername(true); }}
+              activeOpacity={0.7}
+              style={styles.usernameRow}
+            >
+              <Text style={styles.username}>{profile?.username ?? '...'}</Text>
+              <Text style={styles.usernameEditIcon}>✎</Text>
+            </TouchableOpacity>
+          )}
           <Text style={styles.levelLabel}>LEVEL {level} LOOKOUT</Text>
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${pointsProgress}%` }]} />
@@ -363,4 +447,38 @@ const styles = StyleSheet.create({
   reportCoords: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', letterSpacing: 1 },
   reportTime: { fontSize: 11, color: '#555555', letterSpacing: 1, marginTop: 2 },
   reportPoints: { fontSize: 14, fontWeight: '900', color: '#FFD700', letterSpacing: 2 },
+  usernameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  usernameEditIcon: { fontSize: 16, color: '#555555', marginTop: 4 },
+  usernameEditWrapper: { width: '100%', paddingHorizontal: 24, gap: 8, alignItems: 'center' },
+  usernameInput: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 3,
+    textAlign: 'center',
+    width: '100%',
+  },
+  usernameErrorText: { fontSize: 11, color: '#E63946', letterSpacing: 1 },
+  usernameEditButtons: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  usernameCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#444444',
+  },
+  usernameCancelText: { fontSize: 11, fontWeight: '900', color: '#666666', letterSpacing: 2 },
+  usernameSaveBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#FFD700',
+  },
+  usernameSaveText: { fontSize: 11, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
 });

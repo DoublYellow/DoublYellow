@@ -43,9 +43,11 @@ export default function ParkedScreen() {
   const [alertMinutesAgo, setAlertMinutesAgo] = useState(0);
   const [alertIsRecent, setAlertIsRecent] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showTicketModal, setShowTicketModal] = useState(false);
   const pulse = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const alertPulse = useRef(new Animated.Value(1)).current;
+  const alertReporterIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -154,6 +156,11 @@ export default function ParkedScreen() {
             setAlertMinutesAgo(minsAgo);
             setAlertIsRecent(false);
             setAlertVisible(true);
+            // Track who sent this alert so we can thank them later
+            const reporterId = payload.new.user_id;
+            if (reporterId && !alertReporterIdsRef.current.includes(reporterId)) {
+              alertReporterIdsRef.current.push(reporterId);
+            }
             sendLocalNotification(
               '🚨 WARDEN SPOTTED',
               `A warden has been reported ${Math.round(distance)}m from your car!`
@@ -220,12 +227,67 @@ export default function ParkedScreen() {
     }
   };
 
-  const handleDeactivate = async () => {
+  const handleDeactivate = () => {
+    setShowTicketModal(true);
+  };
+
+  const doDeactivate = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
     setIsActive(false);
     setSessionId(null);
+  };
+
+  const handleNoTicket = async () => {
+    setShowTicketModal(false);
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Find all reporters who submitted a warden report during this session, within the radius
+    let reporterIds: string[] = [];
+    if (user && sessionId) {
+      // Get the session start time
+      const { data: session } = await supabase
+        .from('parked_sessions')
+        .select('created_at, latitude, longitude, radius_metres')
+        .eq('id', sessionId)
+        .single();
+
+      if (session) {
+        const sessionLat = session.latitude;
+        const sessionLng = session.longitude;
+        const sessionRadius = session.radius_metres;
+        const lookbackTime = new Date(new Date(session.created_at).getTime() - 30 * 60 * 1000).toISOString();
+
+        const { data: reports } = await supabase
+          .from('warden_reports')
+          .select('user_id, latitude, longitude')
+          .gte('created_at', lookbackTime)
+          .neq('user_id', user.id);
+
+        if (reports) {
+          for (const report of reports) {
+            const distance = getDistanceMetres(
+              sessionLat, sessionLng,
+              report.latitude, report.longitude
+            );
+            if (distance <= sessionRadius && !reporterIds.includes(report.user_id)) {
+              reporterIds.push(report.user_id);
+            }
+          }
+        }
+      }
+    }
+
+    await doDeactivate();
+    router.push(`/celebrate?reporterIds=${encodeURIComponent(JSON.stringify(reporterIds))}`);
+  };
+
+  const handleYesTicket = async () => {
+    setShowTicketModal(false);
+    await doDeactivate();
+    router.push('/appeal');
   };
 
   if (loading) {
@@ -261,6 +323,22 @@ export default function ParkedScreen() {
               <Text style={[styles.alertButtonText, alertIsRecent && styles.alertButtonTextRecent]}>GOT IT</Text>
             </TouchableOpacity>
           </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal visible={showTicketModal} transparent animationType="fade">
+        <View style={styles.alertOverlay}>
+          <View style={styles.ticketModalBox}>
+            <Text style={styles.ticketModalEmoji}>🎫</Text>
+            <Text style={styles.ticketModalTitle}>DID YOU GET A TICKET?</Text>
+            <Text style={styles.ticketModalSub}>Be honest — we're here to help either way</Text>
+            <TouchableOpacity style={styles.ticketNoButton} onPress={handleNoTicket} activeOpacity={0.8}>
+              <Text style={styles.ticketNoText}>NO — I'M FREE! 🎉</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.ticketYesButton} onPress={handleYesTicket} activeOpacity={0.8}>
+              <Text style={styles.ticketYesText}>YES — I GOT ONE 😞</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -398,4 +476,35 @@ const styles = StyleSheet.create({
   activateButton: { borderColor: '#E63946' },
   deactivateText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   activateText: { color: '#E63946' },
+  ticketModalBox: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333333',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    gap: 16,
+    width: '100%',
+  },
+  ticketModalEmoji: { fontSize: 56 },
+  ticketModalTitle: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', letterSpacing: 3, textAlign: 'center' },
+  ticketModalSub: { fontSize: 12, color: '#555555', letterSpacing: 1, textAlign: 'center', marginBottom: 8 },
+  ticketNoButton: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 18,
+    borderRadius: 10,
+    alignItems: 'center',
+    width: '100%',
+  },
+  ticketNoText: { fontSize: 16, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
+  ticketYesButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 18,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E63946',
+    width: '100%',
+  },
+  ticketYesText: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 2 },
 });
