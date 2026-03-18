@@ -112,8 +112,10 @@ Deno.serve(async (req) => {
           message: {
             token: profile.push_token,
             notification: {
-              title: '🚨 WARDEN SPOTTED',
-              body: `A warden has been reported ${Math.round(distance)}m from your car!`,
+              title: report.photo_verified ? '📷 VERIFIED: Warden Spotted' : '⚠️ Warden Spotted',
+              body: report.photo_verified
+                ? `Verified sighting ${Math.round(distance)}m from your car — move it!`
+                : `Unverified report ${Math.round(distance)}m from your car.`,
             },
             android: {
               priority: 'high',

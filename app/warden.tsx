@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useNavigation } from 'expo-router';
@@ -64,6 +65,10 @@ export default function WardenScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [pinCoord, setPinCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [photoVerified, setPhotoVerified] = useState(false);
+  const [photoVerifying, setPhotoVerifying] = useState(false);
+  const [photoAttempts, setPhotoAttempts] = useState(0);
+  const [photoRejectedFinal, setPhotoRejectedFinal] = useState(false);
+  const [photoTaken, setPhotoTaken] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [pointsEarned, setPointsEarned] = useState(0);
@@ -96,16 +101,58 @@ export default function WardenScreen() {
   };
 
   const handlePhotoVerify = async () => {
-    if (photoVerified) return;
+    if (photoVerified || photoRejectedFinal) return;
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
       quality: 0.5,
     });
-    if (!result.canceled) {
-      setPhotoVerified(true);
+    if (result.canceled) return;
+
+    const uri = result.assets[0].uri;
+    setPhotoTaken(true);
+    setPhotoVerifying(true);
+
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/verify-warden-photo`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ imageBase64: base64 }),
+        }
+      );
+      const data = await res.json();
+
+      if (data.verified) {
+        setPhotoVerified(true);
+      } else {
+        const newAttempts = photoAttempts + 1;
+        setPhotoAttempts(newAttempts);
+        if (newAttempts >= 2) {
+          // Second failure — accept photo submission but no bonus
+          setPhotoRejectedFinal(true);
+        }
+        // First failure — UI will prompt to try again
+      }
+    } catch (e) {
+      console.log('VERIFY ERROR:', e);
+      // On network error, don't penalise — just mark unverified
+      const newAttempts = photoAttempts + 1;
+      setPhotoAttempts(newAttempts);
+      if (newAttempts >= 2) setPhotoRejectedFinal(true);
     }
+
+    setPhotoVerifying(false);
   };
 
   const handleSubmit = async () => {
@@ -321,17 +368,46 @@ export default function WardenScreen() {
       </View>
 
       <TouchableOpacity
-        style={[styles.photoButton, photoVerified && styles.photoButtonVerified]}
+        style={[
+          styles.photoButton,
+          photoVerified && styles.photoButtonVerified,
+          photoRejectedFinal && styles.photoButtonRejected,
+          (photoAttempts === 1 && !photoVerified && !photoRejectedFinal) && styles.photoButtonRetry,
+        ]}
         onPress={handlePhotoVerify}
         activeOpacity={0.7}
+        disabled={photoVerifying || photoVerified || photoRejectedFinal}
       >
-        <Text style={styles.photoIcon}>{photoVerified ? '✓' : '📷'}</Text>
+        <Text style={styles.photoIcon}>
+          {photoVerifying ? '⏳' : photoVerified ? '✓' : photoRejectedFinal ? '⚠️' : '📷'}
+        </Text>
         <View style={styles.photoTextWrapper}>
-          <Text style={[styles.photoLabel, photoVerified && styles.photoLabelVerified]}>
-            {photoVerified ? 'PHOTO VERIFIED' : 'PHOTO VERIFY'}
+          <Text style={[
+            styles.photoLabel,
+            photoVerified && styles.photoLabelVerified,
+            photoRejectedFinal && styles.photoLabelRejected,
+            (photoAttempts === 1 && !photoVerified && !photoRejectedFinal) && styles.photoLabelRetry,
+          ]}>
+            {photoVerifying
+              ? 'CHECKING PHOTO...'
+              : photoVerified
+              ? 'PHOTO VERIFIED'
+              : photoRejectedFinal
+              ? 'PHOTO UNVERIFIED'
+              : photoAttempts === 1
+              ? 'COULDN\'T VERIFY — TRY AGAIN'
+              : 'PHOTO VERIFY'}
           </Text>
-          <Text style={[styles.photoOptional, photoVerified && styles.photoPointsLabel]}>
-            {photoVerified ? '+50 pts bonus' : '* optional — earn +50 extra pts'}
+          <Text style={[styles.photoOptional, photoVerified && styles.photoPointsLabel, photoRejectedFinal && styles.photoRejectedSub]}>
+            {photoVerifying
+              ? 'Checking for a traffic warden...'
+              : photoVerified
+              ? '+50 pts bonus'
+              : photoRejectedFinal
+              ? 'Report submitted — photo could not be verified'
+              : photoAttempts === 1
+              ? 'We couldn\'t confirm a warden in that photo'
+              : '* optional — earn +50 extra pts'}
           </Text>
         </View>
         {photoVerified && <Text style={styles.photoBonusTag}>BONUS</Text>}
@@ -440,6 +516,14 @@ const styles = StyleSheet.create({
     borderColor: '#00C853',
     backgroundColor: '#0A1F0A',
   },
+  photoButtonRejected: {
+    borderColor: '#E63946',
+    backgroundColor: '#1F0A0A',
+  },
+  photoButtonRetry: {
+    borderColor: '#FF9800',
+    backgroundColor: '#1F1500',
+  },
   photoIcon: { fontSize: 24, color: '#00C853' },
   photoTextWrapper: { flex: 1 },
   photoLabel: {
@@ -449,6 +533,9 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   photoLabelVerified: { color: '#00C853' },
+  photoLabelRejected: { color: '#E63946' },
+  photoLabelRetry: { color: '#FF9800' },
+  photoRejectedSub: { color: '#E63946' },
   photoOptional: {
     fontSize: 11,
     color: '#555555',
