@@ -2,9 +2,32 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useNavigation } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { supabase } from '../lib/supabase';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CONFETTI_COLORS = ['#FFD700', '#E63946', '#00C853', '#2196F3', '#FF9800', '#FFFFFF'];
+const FALL_COUNT = 30;
+
+function makeConfettiPieces() {
+  return Array.from({ length: FALL_COUNT }, (_, i) => {
+    const startX = Math.random() * SCREEN_WIDTH;
+    return {
+      id: `c-${i}`,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      size: 7 + Math.random() * 8,
+      delay: Math.random() * 500,
+      duration: 2000 + Math.random() * 1200,
+      startX,
+      targetX: startX + (Math.random() - 0.5) * 100,
+      translateY: new Animated.Value(-60),
+      translateX: new Animated.Value(startX),
+      opacity: new Animated.Value(1),
+      rotate: new Animated.Value(0),
+    };
+  });
+}
 
 export default function WardenScreen() {
   const navigation = useNavigation();
@@ -19,6 +42,7 @@ export default function WardenScreen() {
 
   const RATE_LIMIT_MINUTES = 5;
   const mapRef = useRef<MapView>(null);
+  const confettiPieces = useRef(makeConfettiPieces()).current;
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -121,12 +145,51 @@ export default function WardenScreen() {
     setNewBadges(earned);
     setLoading(false);
     setSubmitted(true);
-    setTimeout(() => navigation.goBack(), 3000);
+
+    // Fire confetti
+    confettiPieces.forEach((piece) => {
+      piece.translateY.setValue(-60);
+      piece.translateX.setValue(piece.startX);
+      piece.opacity.setValue(1);
+      piece.rotate.setValue(0);
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(piece.translateY, { toValue: SCREEN_HEIGHT + 60, duration: piece.duration, useNativeDriver: true }),
+          Animated.timing(piece.translateX, { toValue: piece.targetX, duration: piece.duration, useNativeDriver: true }),
+          Animated.timing(piece.rotate, { toValue: 1, duration: piece.duration, useNativeDriver: true }),
+          Animated.timing(piece.opacity, { toValue: 0, duration: piece.duration, delay: piece.duration * 0.6, useNativeDriver: true }),
+        ]).start();
+      }, piece.delay);
+    });
+
+    setTimeout(() => navigation.goBack(), 3500);
   };
 
   if (submitted) {
     return (
       <SafeAreaView style={styles.successContainer}>
+        {/* Confetti layer */}
+        <View style={styles.confettiContainer} pointerEvents="none">
+          {confettiPieces.map((piece) => {
+            const rotation = piece.rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '720deg'] });
+            return (
+              <Animated.View
+                key={piece.id}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: piece.startX,
+                  width: piece.size,
+                  height: piece.size,
+                  backgroundColor: piece.color,
+                  borderRadius: 2,
+                  opacity: piece.opacity,
+                  transform: [{ translateY: piece.translateY }, { translateX: piece.translateX }, { rotate: rotation }],
+                }}
+              />
+            );
+          })}
+        </View>
         <Text style={styles.successEmoji}>⚠️</Text>
         <Text style={styles.successTitle}>ALERT SENT</Text>
         <Text style={styles.successSub}>Drivers in your area have been notified.</Text>
@@ -367,6 +430,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
+  confettiContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
   successEmoji: { fontSize: 64 },
   successTitle: {
     fontSize: 52,

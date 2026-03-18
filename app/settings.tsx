@@ -1,6 +1,6 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 export default function SettingsScreen() {
@@ -11,6 +11,19 @@ export default function SettingsScreen() {
   const [siren, setSiren] = useState(true);
   const [defaultRadius, setDefaultRadius] = useState(100);
   const [saving, setSaving] = useState(false);
+
+  // Password change
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  // Email change
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -69,6 +82,48 @@ export default function SettingsScreen() {
   const handleRadius = (val: number) => {
     setDefaultRadius(val);
     saveSetting({ default_radius: val });
+  };
+
+  const handleSavePassword = async () => {
+    setPasswordError('');
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    setSavingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setPasswordError('Could not update password. Try again.');
+    } else {
+      setIsChangingPassword(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      Alert.alert('Password Updated', 'Your password has been changed successfully.');
+    }
+    setSavingPassword(false);
+  };
+
+  const handleSaveEmail = async () => {
+    setEmailError('');
+    if (!newEmail.includes('@') || newEmail.trim().length < 5) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+    setSavingEmail(true);
+    const { error } = await supabase.auth.updateUser({ email: newEmail.trim() });
+    if (error) {
+      setEmailError('Could not update email. Try again.');
+    } else {
+      setIsChangingEmail(false);
+      setEmail(newEmail.trim());
+      setNewEmail('');
+      Alert.alert('Confirmation Sent', 'Check your new email address to confirm the change.');
+    }
+    setSavingEmail(false);
   };
 
   const handleLogout = () => {
@@ -165,7 +220,13 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>ACCOUNT</Text>
           <View style={styles.card}>
-            <View style={styles.row}>
+
+            {/* Email row */}
+            <TouchableOpacity
+              style={styles.row}
+              activeOpacity={0.7}
+              onPress={() => { setIsChangingEmail(!isChangingEmail); setEmailError(''); setNewEmail(''); }}
+            >
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>✉️</Text>
                 <View>
@@ -173,11 +234,51 @@ export default function SettingsScreen() {
                   <Text style={styles.rowSub}>{email || '...'}</Text>
                 </View>
               </View>
-            </View>
+              <Text style={styles.rowArrow}>{isChangingEmail ? '↑' : '›'}</Text>
+            </TouchableOpacity>
+
+            {isChangingEmail && (
+              <View style={styles.editPanel}>
+                <TextInput
+                  style={styles.editInput}
+                  value={newEmail}
+                  onChangeText={(t) => { setNewEmail(t); setEmailError(''); }}
+                  placeholder="new email address"
+                  placeholderTextColor="#555555"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoFocus
+                />
+                {emailError ? <Text style={styles.editError}>{emailError}</Text> : null}
+                <Text style={styles.editHint}>A confirmation link will be sent to your new address.</Text>
+                <View style={styles.editButtons}>
+                  <TouchableOpacity
+                    style={styles.editCancelBtn}
+                    onPress={() => { setIsChangingEmail(false); setEmailError(''); setNewEmail(''); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.editCancelText}>CANCEL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.editSaveBtn, savingEmail && { opacity: 0.5 }]}
+                    onPress={handleSaveEmail}
+                    disabled={savingEmail}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.editSaveText}>{savingEmail ? 'SAVING...' : 'UPDATE EMAIL'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+            {/* Password row */}
+            <TouchableOpacity
+              style={styles.row}
+              activeOpacity={0.7}
+              onPress={() => { setIsChangingPassword(!isChangingPassword); setPasswordError(''); setNewPassword(''); setConfirmPassword(''); }}
+            >
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>🔑</Text>
                 <View>
@@ -185,8 +286,48 @@ export default function SettingsScreen() {
                   <Text style={styles.rowSub}>Update your password</Text>
                 </View>
               </View>
-              <Text style={styles.rowArrow}>›</Text>
+              <Text style={styles.rowArrow}>{isChangingPassword ? '↑' : '›'}</Text>
             </TouchableOpacity>
+
+            {isChangingPassword && (
+              <View style={styles.editPanel}>
+                <TextInput
+                  style={styles.editInput}
+                  value={newPassword}
+                  onChangeText={(t) => { setNewPassword(t); setPasswordError(''); }}
+                  placeholder="new password"
+                  placeholderTextColor="#555555"
+                  secureTextEntry
+                  autoFocus
+                />
+                <TextInput
+                  style={styles.editInput}
+                  value={confirmPassword}
+                  onChangeText={(t) => { setConfirmPassword(t); setPasswordError(''); }}
+                  placeholder="confirm new password"
+                  placeholderTextColor="#555555"
+                  secureTextEntry
+                />
+                {passwordError ? <Text style={styles.editError}>{passwordError}</Text> : null}
+                <View style={styles.editButtons}>
+                  <TouchableOpacity
+                    style={styles.editCancelBtn}
+                    onPress={() => { setIsChangingPassword(false); setPasswordError(''); setNewPassword(''); setConfirmPassword(''); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.editCancelText}>CANCEL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.editSaveBtn, savingPassword && { opacity: 0.5 }]}
+                    onPress={handleSavePassword}
+                    disabled={savingPassword}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.editSaveText}>{savingPassword ? 'SAVING...' : 'UPDATE PASSWORD'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
@@ -208,12 +349,12 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/plans')}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>🚀</Text>
                 <View>
-                  <Text style={styles.rowLabel}>Upgrade to Pro</Text>
-                  <Text style={styles.rowSub}>Unlimited activations — coming soon</Text>
+                  <Text style={styles.rowLabel}>Upgrade Plan</Text>
+                  <Text style={styles.rowSub}>View plans — coming soon</Text>
                 </View>
               </View>
               <Text style={styles.rowArrow}>›</Text>
@@ -309,4 +450,36 @@ const styles = StyleSheet.create({
   freeBadgeText: { fontSize: 10, fontWeight: '900', color: '#FFD700', letterSpacing: 2 },
   logoutButton: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#E63946', borderRadius: 12, paddingVertical: 18, alignItems: 'center' },
   logoutText: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 4 },
+  editPanel: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  editInput: {
+    backgroundColor: '#0D0D0D',
+    borderWidth: 1,
+    borderColor: '#444444',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  editError: { fontSize: 11, color: '#E63946', letterSpacing: 1 },
+  editHint: { fontSize: 11, color: '#444444', letterSpacing: 0.5, lineHeight: 16 },
+  editButtons: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  editCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#444444',
+  },
+  editCancelText: { fontSize: 11, fontWeight: '900', color: '#666666', letterSpacing: 2 },
+  editSaveBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFD700',
+    alignItems: 'center',
+  },
+  editSaveText: { fontSize: 11, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
 });

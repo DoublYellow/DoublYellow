@@ -108,26 +108,41 @@ export default function ProfileScreen() {
       }
       setHasStreak(streak);
 
-      const { data: allProfiles } = await supabase
+      // Get true global ranking
+      const { count: aboveCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .gt('points', profileData?.points ?? 0);
+      const trueRank = (aboveCount ?? 0) + 1;
+      setRanking(trueRank);
+
+      // Fetch top 3 for leaderboard
+      const { data: top3 } = await supabase
         .from('profiles')
         .select('username, points, id')
         .order('points', { ascending: false })
-        .limit(10);
+        .limit(3);
 
-      if (allProfiles) {
-        const entries: LeaderboardEntry[] = allProfiles.map((p, i) => ({
+      if (top3) {
+        const entries: LeaderboardEntry[] = top3.map((p, i) => ({
           username: p.username,
           points: p.points,
           rank: i + 1,
           isMe: p.id === user.id,
         }));
-        setLeaderboard(entries);
 
-        const { count: aboveCount } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .gt('points', profileData?.points ?? 0);
-        setRanking((aboveCount ?? 0) + 1);
+        // If user is not in top 3, append their own row with true rank
+        const userInTop3 = top3.some((p) => p.id === user.id);
+        if (!userInTop3 && profileData) {
+          entries.push({
+            username: profileData.username,
+            points: profileData.points,
+            rank: trueRank,
+            isMe: true,
+          });
+        }
+
+        setLeaderboard(entries);
       }
     })();
   }, []);
