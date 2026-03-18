@@ -32,6 +32,15 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+
+# Firebase service account credentials — NEVER commit these
+*firebase-adminsdk*.json
+doublyellow-ac481-*.json
+
+# Google services config — keep out of public repos
+google-services.json
+GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo
