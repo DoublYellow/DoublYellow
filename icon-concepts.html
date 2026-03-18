@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Double Yellow — Icon Final</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; font-family: -apple-system, sans-serif; color: #fff; padding: 40px; }
+  h1 { font-size: 24px; font-weight: 900; letter-spacing: 4px; color: #FFD700; margin-bottom: 8px; }
+  p { color: #666; font-size: 13px; letter-spacing: 1px; margin-bottom: 48px; }
+  .sizes { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+  .icon-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .size-label { font-size: 10px; color: #555; letter-spacing: 1px; }
+  .note { margin-top: 48px; padding: 24px; border: 1px solid #222; border-radius: 12px; max-width: 560px; }
+  .note h2 { font-size: 11px; font-weight: 900; letter-spacing: 3px; color: #FFD700; margin-bottom: 12px; }
+  .note p { color: #555; font-size: 12px; line-height: 1.8; letter-spacing: 0.5px; margin: 0; }
+  .note strong { color: #fff; }
+</style>
+</head>
+<body>
+
+<h1>DOUBLE YELLOW — ICON</h1>
+<p>Final direction: black background · double yellow lines · DY monogram in yellow</p>
+
+<div class="sizes">
+
+  <!-- 1024px -->
+  <div class="icon-wrap">
+    <svg width="1024" height="1024" viewBox="0 0 1024 1024" style="width:220px;height:220px;border-radius:22.5%">
+      <rect width="1024" height="1024" fill="#0D0D0D"/>
+      <!-- Double yellow lines at bottom -->
+      <rect x="0" y="820" width="1024" height="68" fill="#FFD700"/>
+      <rect x="0" y="924" width="1024" height="68" fill="#FFD700"/>
+      <!-- DY monogram in yellow -->
+      <text
+        x="512"
+        y="740"
+        font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+        font-size="560"
+        font-weight="900"
+        text-anchor="middle"
+        fill="#FFD700"
+        letter-spacing="-30"
+      >DY</text>
+    </svg>
+    <span class="size-label">1024px (App Store)</span>
+  </div>
+
+  <!-- 180px -->
+  <div class="icon-wrap">
+    <svg width="180" height="180" viewBox="0 0 1024 1024" style="width:120px;height:120px;border-radius:22.5%">
+      <rect width="1024" height="1024" fill="#0D0D0D"/>
+      <rect x="0" y="820" width="1024" height="68" fill="#FFD700"/>
+      <rect x="0" y="924" width="1024" height="68" fill="#FFD700"/>
+      <text x="512" y="740" font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-size="560" font-weight="900" text-anchor="middle" fill="#FFD700" letter-spacing="-30">DY</text>
+    </svg>
+    <span class="size-label">180px (iPhone home)</span>
+  </div>
+
+  <!-- 87px -->
+  <div class="icon-wrap">
+    <svg width="87" height="87" viewBox="0 0 1024 1024" style="width:72px;height:72px;border-radius:22.5%">
+      <rect width="1024" height="1024" fill="#0D0D0D"/>
+      <rect x="0" y="820" width="1024" height="68" fill="#FFD700"/>
+      <rect x="0" y="924" width="1024" height="68" fill="#FFD700"/>
+      <text x="512" y="740" font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-size="560" font-weight="900" text-anchor="middle" fill="#FFD700" letter-spacing="-30">DY</text>
+    </svg>
+    <span class="size-label">87px (spotlight)</span>
+  </div>
+
+  <!-- 60px -->
+  <div class="icon-wrap">
+    <svg width="60" height="60" viewBox="0 0 1024 1024" style="width:48px;height:48px;border-radius:22.5%">
+      <rect width="1024" height="1024" fill="#0D0D0D"/>
+      <rect x="0" y="820" width="1024" height="68" fill="#FFD700"/>
+      <rect x="0" y="924" width="1024" height="68" fill="#FFD700"/>
+      <text x="512" y="740" font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-size="560" font-weight="900" text-anchor="middle" fill="#FFD700" letter-spacing="-30">DY</text>
+    </svg>
+    <span class="size-label">60px (small)</span>
+  </div>
+
+  <!-- 29px -->
+  <div class="icon-wrap">
+    <svg width="29" height="29" viewBox="0 0 1024 1024" style="width:34px;height:34px;border-radius:22.5%">
+      <rect width="1024" height="1024" fill="#0D0D0D"/>
+      <rect x="0" y="820" width="1024" height="68" fill="#FFD700"/>
+      <rect x="0" y="924" width="1024" height="68" fill="#FFD700"/>
+      <text x="512" y="740" font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-size="560" font-weight="900" text-anchor="middle" fill="#FFD700" letter-spacing="-30">DY</text>
+    </svg>
+    <span class="size-label">29px (settings)</span>
+  </div>
+
+</div>
+
+<div class="note">
+  <h2>HOW TO USE THIS AS YOUR ACTUAL ICON</h2>
+  <p>
+    1. Open this HTML file in a browser, right-click the large (220px) icon and save it — or use a tool like <strong>Figma, Canva, or Sketch</strong> to recreate it as a proper <strong>1024×1024 PNG</strong>.<br><br>
+    2. Save it as <strong>assets/images/icon.png</strong> and also as <strong>assets/images/adaptive-icon.png</strong> in your project.<br><br>
+    3. Your <strong>app.json</strong> already points to these files. Just rebuild with EAS:<br>
+    <strong>eas build --platform all --profile preview</strong><br><br>
+    The font used is <strong>Arial Black / Helvetica Neue Black</strong> — available on all systems. For the final version a designer could swap this for a custom typeface to make it even more distinctive.
+  </p>
+</div>
+
+</body>
+</html>
