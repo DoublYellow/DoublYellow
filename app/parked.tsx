@@ -1,9 +1,24 @@
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
 import { sendLocalNotification } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+
+// ─── AdMob config ────────────────────────────────────────────────────────────
+// TODO: Replace placeholder IDs with your real AdMob ad unit IDs before release
+const ADMOB_ANDROID_UNIT_ID = 'ca-app-pub-2486082859770139/3473534357';
+const ADMOB_IOS_UNIT_ID     = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX'; // ← paste iOS ad unit ID here
+
+const adUnitId = __DEV__
+  ? TestIds.INTERSTITIAL
+  : Platform.OS === 'ios' ? ADMOB_IOS_UNIT_ID : ADMOB_ANDROID_UNIT_ID;
+
+const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
+  requestNonPersonalizedAdsOnly: true,
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 const RADII = ['50m', '100m', '250m', '500m'];
 const DEFAULT_RADIUS = '100m';
@@ -44,6 +59,8 @@ export default function ParkedScreen() {
   const [alertIsRecent, setAlertIsRecent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showTicketModal, setShowTicketModal] = useState(false);
+  const [adLoaded, setAdLoaded] = useState(false);
+  const pendingActivateRef = useRef(false);
   const pulse = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const alertPulse = useRef(new Animated.Value(1)).current;
@@ -172,7 +189,37 @@ export default function ParkedScreen() {
     return () => { supabase.removeChannel(channel); };
   }, [isActive, carLocation, selectedRadius]);
 
-  const handleActivate = async () => {
+  // Load interstitial ad and listen for events
+  useEffect(() => {
+    const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setAdLoaded(true);
+    });
+    const unsubClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      setAdLoaded(false);
+      interstitial.load(); // preload next ad
+      // If activate was waiting for ad to close, run it now
+      if (pendingActivateRef.current) {
+        pendingActivateRef.current = false;
+        runActivate();
+      }
+    });
+    const unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
+      setAdLoaded(false);
+      // On error, just activate without ad
+      if (pendingActivateRef.current) {
+        pendingActivateRef.current = false;
+        runActivate();
+      }
+    });
+    interstitial.load();
+    return () => {
+      unsubLoaded();
+      unsubClosed();
+      unsubError();
+    };
+  }, []);
+
+  const runActivate = async () => {
     if (!carLocation) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -192,10 +239,8 @@ export default function ParkedScreen() {
       .select()
       .single();
     if (data) setSessionId(data.id);
-
     setIsActive(true);
 
-    // Check history once on activation
     const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data: recentReports } = await supabase
       .from('warden_reports')
@@ -206,10 +251,8 @@ export default function ParkedScreen() {
     if (recentReports) {
       for (const report of recentReports) {
         const distance = getDistanceMetres(
-          carLocation.latitude,
-          carLocation.longitude,
-          report.latitude,
-          report.longitude
+          carLocation.latitude, carLocation.longitude,
+          report.latitude, report.longitude
         );
         if (distance <= radiusMetres) {
           const minsAgo = getMinutesAgo(report.created_at);
@@ -217,13 +260,21 @@ export default function ParkedScreen() {
           setAlertMinutesAgo(minsAgo);
           setAlertIsRecent(true);
           setAlertVisible(true);
-          sendLocalNotification(
-            '⚠️ RECENT WARDEN SIGHTING',
-            `A warden was spotted ${Math.round(distance)}m away, ${formatMinutesAgo(minsAgo)}`
-          );
+          sendLocalNotification('⚠️ RECENT WARDEN SIGHTING', `A warden was spotted ${Math.round(distance)}m away, ${formatMinutesAgo(minsAgo)}`);
           break;
         }
       }
+    }
+  };
+
+  const handleActivate = () => {
+    // Show interstitial ad for free plan users, then activate after it closes
+    if (adLoaded) {
+      pendingActivateRef.current = true;
+      interstitial.show();
+    } else {
+      // Ad not ready — activate straight away (never block the user)
+      runActivate();
     }
   };
 
