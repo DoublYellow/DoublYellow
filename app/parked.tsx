@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 // ─── AdMob config ────────────────────────────────────────────────────────────
 // TODO: Replace placeholder IDs with your real AdMob ad unit IDs before release
 const ADMOB_ANDROID_UNIT_ID = 'ca-app-pub-2486082859770139/3473534357';
-const ADMOB_IOS_UNIT_ID     = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX'; // ← paste iOS ad unit ID here
+const ADMOB_IOS_UNIT_ID     = 'ca-app-pub-2486082859770139/4158395213';
 
 const adUnitId = __DEV__
   ? TestIds.INTERSTITIAL
