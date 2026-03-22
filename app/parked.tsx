@@ -1,8 +1,9 @@
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
+import { Animated, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MobileAds, { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
+import { Ionicons } from '@expo/vector-icons';
 import { sendLocalNotification } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
@@ -15,9 +16,23 @@ const adUnitId = __DEV__
   ? TestIds.INTERSTITIAL
   : Platform.OS === 'ios' ? ADMOB_IOS_UNIT_ID : ADMOB_ANDROID_UNIT_ID;
 
-const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-  requestNonPersonalizedAdsOnly: true,
-});
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Tier activation limits ───────────────────────────────────────────────────
+// null = unlimited. 'free' always shows ads. Paid tiers show ads once limit hit.
+const TIER_LIMITS: Record<string, number | null> = {
+  free:      null, // unlimited activations, but always shows ad
+  basic:     8,
+  pro:       20,
+  unlimited: null, // unlimited, never shows ad
+};
+
+function tierRequiresAd(tier: string, monthlyCount: number): boolean {
+  if (tier === 'unlimited') return false;
+  if (tier === 'free') return true;
+  const limit = TIER_LIMITS[tier] ?? 0;
+  return monthlyCount >= limit;
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RADII = ['50m', '100m', '250m', '500m'];
@@ -60,7 +75,11 @@ export default function ParkedScreen() {
   const [loading, setLoading] = useState(true);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [adLoaded, setAdLoaded] = useState(false);
+  const [userTier, setUserTier] = useState<string>('free');
+  const [monthlyActivations, setMonthlyActivations] = useState(0);
   const pendingActivateRef = useRef(false);
+  const runActivateRef = useRef<() => Promise<void>>(async () => {});
+  const interstitialRef = useRef<InterstitialAd | null>(null);
   const pulse = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const alertPulse = useRef(new Animated.Value(1)).current;
@@ -89,6 +108,25 @@ export default function ParkedScreen() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
+
+      // Load user tier from profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('tier')
+        .eq('id', user.id)
+        .single();
+      if (profileData?.tier) setUserTier(profileData.tier);
+
+      // Count this month's activations
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const { count } = await supabase
+        .from('parked_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', startOfMonth.toISOString());
+      setMonthlyActivations(count ?? 0);
 
       // Load default radius from settings
       const { data: settingsData } = await supabase
@@ -191,32 +229,43 @@ export default function ParkedScreen() {
 
   // Load interstitial ad and listen for events
   useEffect(() => {
-    const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      setAdLoaded(true);
-    });
-    const unsubClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-      setAdLoaded(false);
-      interstitial.load(); // preload next ad
-      // If activate was waiting for ad to close, run it now
-      if (pendingActivateRef.current) {
-        pendingActivateRef.current = false;
-        runActivate();
-      }
-    });
-    const unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
-      setAdLoaded(false);
-      // On error, just activate without ad
-      if (pendingActivateRef.current) {
-        pendingActivateRef.current = false;
-        runActivate();
-      }
-    });
-    interstitial.load();
-    return () => {
-      unsubLoaded();
-      unsubClosed();
-      unsubError();
+    const setup = async () => {
+      const ad = InterstitialAd.createForAdRequest(adUnitId, {
+        requestNonPersonalizedAdsOnly: true,
+      });
+      interstitialRef.current = ad;
+
+      const unsubLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
+        setAdLoaded(true);
+      });
+      const unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+        setAdLoaded(false);
+        ad.load(); // preload next ad
+        if (pendingActivateRef.current) {
+          pendingActivateRef.current = false;
+          runActivateRef.current();
+        }
+      });
+      const unsubError = ad.addAdEventListener(AdEventType.ERROR, () => {
+        setAdLoaded(false);
+        if (pendingActivateRef.current) {
+          pendingActivateRef.current = false;
+          runActivateRef.current();
+        }
+      });
+
+      ad.load();
+
+      return () => {
+        unsubLoaded();
+        unsubClosed();
+        unsubError();
+      };
     };
+
+    let cleanup: (() => void) | undefined;
+    setup().then((fn) => { cleanup = fn; });
+    return () => { cleanup?.(); };
   }, []);
 
   const runActivate = async () => {
@@ -226,6 +275,13 @@ export default function ParkedScreen() {
     const radiusMetres = parseInt(selectedRadius.replace('m', ''));
 
     await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
+
+    // Save radius as default if user checked "Save for next time"
+    if (saveForNext) {
+      await supabase
+        .from('settings')
+        .upsert({ user_id: user.id, default_radius: radiusMetres }, { onConflict: 'user_id' });
+    }
 
     const { data } = await supabase
       .from('parked_sessions')
@@ -240,6 +296,7 @@ export default function ParkedScreen() {
       .single();
     if (data) setSessionId(data.id);
     setIsActive(true);
+    setMonthlyActivations(prev => prev + 1);
 
     const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data: recentReports } = await supabase
@@ -267,13 +324,15 @@ export default function ParkedScreen() {
     }
   };
 
+  runActivateRef.current = runActivate;
+
   const handleActivate = () => {
-    // Show interstitial ad for free plan users, then activate after it closes
-    if (adLoaded) {
+    const showAd = tierRequiresAd(userTier, monthlyActivations);
+    if (showAd && adLoaded) {
       pendingActivateRef.current = true;
-      interstitial.show();
+      interstitialRef.current?.show();
     } else {
-      // Ad not ready — activate straight away (never block the user)
+      // Either doesn't need an ad, or ad not ready — activate straight away
       runActivate();
     }
   };
@@ -380,22 +439,24 @@ export default function ParkedScreen() {
       <Modal visible={showTicketModal} transparent animationType="fade">
         <View style={styles.alertOverlay}>
           <View style={styles.ticketModalBox}>
-            <Text style={styles.ticketModalEmoji}>🎫</Text>
+            <Ionicons name="pricetag-outline" size={56} color="#FFD700" />
             <Text style={styles.ticketModalTitle}>DID YOU GET A TICKET?</Text>
             <Text style={styles.ticketModalSub}>Be honest — we're here to help either way</Text>
             <TouchableOpacity style={styles.ticketNoButton} onPress={handleNoTicket} activeOpacity={0.8}>
-              <Text style={styles.ticketNoText}>NO — I'M FREE! 🎉</Text>
+              <Text style={styles.ticketNoText}>NO — I'M FREE!</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.ticketYesButton} onPress={handleYesTicket} activeOpacity={0.8}>
-              <Text style={styles.ticketYesText}>YES — I GOT ONE 😞</Text>
+              <Text style={styles.ticketYesText}>YES — I GOT ONE</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')} activeOpacity={0.7}>
-        <Text style={styles.backText}>← BACK</Text>
-      </TouchableOpacity>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')} activeOpacity={0.7}>
+          <Text style={styles.backText}>← BACK</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.doubleYellow}>
         <View style={styles.yellowLine} />
@@ -403,60 +464,71 @@ export default function ParkedScreen() {
         <View style={styles.yellowLine} />
       </View>
 
-      <View style={styles.header}>
-        {isActive && (
-          <View style={styles.tickCircle}>
-            <Text style={styles.tick}>✓</Text>
-          </View>
-        )}
-        {!isActive && <Text style={styles.notLabel}>NOT</Text>}
-        <Animated.Text style={[styles.activatedLabel, { opacity: isActive ? pulse : 1 }, !isActive && styles.activatedLabelInactive]}>
-          ACTIVATED
-        </Animated.Text>
-        <Text style={styles.subLabel}>
-          {isActive ? 'Community lookouts are go!' : 'Alerts Switched Off.'}
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>ALERT ME WHEN A WARDEN IS SPOTTED WITHIN</Text>
-        <View style={styles.radiiRow}>
-          {RADII.map((r) => (
-            <TouchableOpacity
-              key={r}
-              style={[styles.radiusButton, selectedRadius === r && styles.radiusButtonActive]}
-              onPress={() => setSelectedRadius(r)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.radiusText, selectedRadius === r && styles.radiusTextActive]}>{r}</Text>
-            </TouchableOpacity>
-          ))}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          {isActive && (
+            <View style={styles.tickCircle}>
+              <Text style={styles.tick}>✓</Text>
+            </View>
+          )}
+          {!isActive && <Text style={styles.notLabel}>NOT</Text>}
+          <Animated.Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.4}
+            style={[styles.activatedLabel, { opacity: isActive ? pulse : 1 }, !isActive && styles.activatedLabelInactive]}
+          >
+            ACTIVATED
+          </Animated.Text>
+          <Text style={styles.subLabel}>
+            {isActive ? 'Community lookouts are go!' : 'Alerts Switched Off.'}
+          </Text>
         </View>
 
-        <TouchableOpacity style={styles.checkboxRow} onPress={() => setSaveForNext(!saveForNext)} activeOpacity={0.7}>
-          <View style={[styles.checkbox, saveForNext && styles.checkboxChecked]}>
-            {saveForNext && <Text style={styles.checkmark}>✓</Text>}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel} numberOfLines={1} adjustsFontSizeToFit>ALERT ME WHEN A WARDEN IS SPOTTED WITHIN</Text>
+          <View style={styles.radiiRow}>
+            {RADII.map((r) => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.radiusButton, selectedRadius === r && styles.radiusButtonActive]}
+                onPress={() => setSelectedRadius(r)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.radiusText, selectedRadius === r && styles.radiusTextActive]}>{r}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          <Text style={styles.checkboxLabel}>Save for next time</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.locationButton, carLocation && styles.locationButtonSet]}
-          onPress={() => router.push('/carlocation')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.locationIcon}>📍</Text>
-          <View style={styles.locationTextWrapper}>
-            <Text style={[styles.locationLabel, carLocation && styles.locationLabelSet]}>
-              {carLocation ? 'CAR LOCATION SET' : 'SET CAR LOCATION MANUALLY'}
-            </Text>
-            <Text style={styles.locationSub}>
-              {carLocation ? 'Tap to update' : 'Defaults to your current GPS'}
-            </Text>
-          </View>
-          {carLocation && <Text style={styles.locationTick}>✓</Text>}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.checkboxRow} onPress={() => setSaveForNext(!saveForNext)} activeOpacity={0.7}>
+            <View style={[styles.checkbox, saveForNext && styles.checkboxChecked]}>
+              {saveForNext && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.checkboxLabel}>Save for next time</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.locationButton, carLocation && styles.locationButtonSet]}
+            onPress={() => router.push('/carlocation')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="location" size={22} color={carLocation ? '#E63946' : '#666666'} />
+            <View style={styles.locationTextWrapper}>
+              <Text style={[styles.locationLabel, carLocation && styles.locationLabelSet]}>
+                {carLocation ? 'CAR LOCATION SET' : 'SET CAR LOCATION MANUALLY'}
+              </Text>
+              <Text style={styles.locationSub}>
+                {carLocation ? 'Tap to update' : 'Defaults to your current GPS'}
+              </Text>
+            </View>
+            {carLocation && <Text style={styles.locationTick}>✓</Text>}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity
@@ -490,19 +562,22 @@ const styles = StyleSheet.create({
   alertButtonRecent: { backgroundColor: '#FFD700' },
   alertButtonText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   alertButtonTextRecent: { color: '#0D0D0D' },
-  backButton: { position: 'absolute', top: 80, left: 24, zIndex: 10 },
-  backText: { fontSize: 12, fontWeight: '700', color: '#0D0D0D', letterSpacing: 2 },
-  doubleYellow: { marginTop: 72 },
-  yellowLine: { width: '100%', height: 30, backgroundColor: '#FFD700' },
-  yellowGap: { height: 18, backgroundColor: '#0D0D0D' },
-  header: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
+  topBar: { paddingHorizontal: 20, paddingTop: Platform.OS === 'android' ? 52 : 12, paddingBottom: 12 },
+  backButton: {},
+  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
+  doubleYellow: { marginTop: 8 },
+  yellowLine: { width: '100%', height: 22, backgroundColor: '#FFD700' },
+  yellowGap: { height: 12, backgroundColor: '#0D0D0D' },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 32 },
+  header: { paddingVertical: 40, justifyContent: 'center', alignItems: 'center', gap: 10, paddingHorizontal: 24 },
   tickCircle: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   tick: { fontSize: 36, color: '#FFFFFF', fontWeight: '900', lineHeight: 42 },
   notLabel: { fontSize: 64, fontWeight: '900', color: '#555555', letterSpacing: 8 },
-  activatedLabel: { fontSize: 64, fontWeight: '900', color: '#E63946', letterSpacing: 8 },
+  activatedLabel: { fontSize: 64, fontWeight: '900', color: '#E63946', letterSpacing: 2, width: '100%', textAlign: 'center' },
   activatedLabelInactive: { color: '#555555' },
   subLabel: { fontSize: 16, color: '#888888', letterSpacing: 2 },
-  section: { paddingHorizontal: 24, gap: 20, marginBottom: 24 },
+  section: { paddingHorizontal: 24, gap: 16, marginBottom: 16 },
   sectionLabel: { fontSize: 11, fontWeight: '700', color: '#666666', letterSpacing: 2, textAlign: 'center' },
   radiiRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   radiusButton: { flex: 1, paddingVertical: 16, borderRadius: 8, borderWidth: 1, borderColor: '#333333', alignItems: 'center', backgroundColor: '#1A1A1A' },
@@ -516,13 +591,12 @@ const styles = StyleSheet.create({
   checkboxLabel: { fontSize: 14, color: '#888888', letterSpacing: 1 },
   locationButton: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 10, borderWidth: 1, borderColor: '#333333', backgroundColor: '#1A1A1A' },
   locationButtonSet: { borderColor: '#E63946', backgroundColor: '#1A0A0A' },
-  locationIcon: { fontSize: 22 },
   locationTextWrapper: { flex: 1 },
   locationLabel: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
   locationLabelSet: { color: '#E63946' },
   locationSub: { fontSize: 11, color: '#555555', letterSpacing: 1, marginTop: 2 },
   locationTick: { fontSize: 18, color: '#E63946', fontWeight: '900' },
-  footer: { paddingHorizontal: 24, paddingVertical: 72, alignItems: 'center' },
+  footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: Platform.OS === 'android' ? 48 : 24, alignItems: 'center' },
   deactivateButton: { paddingVertical: 16, paddingHorizontal: 48, borderRadius: 8, borderWidth: 1, borderColor: '#FFFFFF' },
   activateButton: { borderColor: '#E63946' },
   deactivateText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
@@ -537,7 +611,6 @@ const styles = StyleSheet.create({
     gap: 16,
     width: '100%',
   },
-  ticketModalEmoji: { fontSize: 56 },
   ticketModalTitle: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', letterSpacing: 3, textAlign: 'center' },
   ticketModalSub: { fontSize: 12, color: '#555555', letterSpacing: 1, textAlign: 'center', marginBottom: 8 },
   ticketNoButton: {
@@ -547,7 +620,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
-  ticketNoText: { fontSize: 16, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
+  ticketNoText: { fontSize: 16, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2, textAlign: 'center' },
   ticketYesButton: {
     backgroundColor: 'transparent',
     paddingVertical: 18,
@@ -557,5 +630,5 @@ const styles = StyleSheet.create({
     borderColor: '#E63946',
     width: '100%',
   },
-  ticketYesText: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 2 },
+  ticketYesText: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 2, textAlign: 'center' },
 });

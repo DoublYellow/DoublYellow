@@ -2,6 +2,7 @@ import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
@@ -65,7 +66,6 @@ export default function SettingsScreen() {
       updated_at: new Date().toISOString(),
     });
 
-  if (error) console.log('SETTINGS ERROR:', JSON.stringify(error));
   setSaving(false);
 };
 
@@ -162,8 +162,8 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>🔔</Text>
-                <View>
+                <Ionicons name="notifications-outline" size={22} color="#FFD700" />
+                <View style={{ flex: 1 }}>
                   <Text style={styles.rowLabel}>Push Notifications</Text>
                   <Text style={styles.rowSub}>Get alerted when a warden is spotted</Text>
                 </View>
@@ -180,8 +180,8 @@ export default function SettingsScreen() {
 
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>🚨</Text>
-                <View>
+                <Ionicons name="alert-circle-outline" size={22} color="#FFD700" />
+                <View style={{ flex: 1 }}>
                   <Text style={styles.rowLabel}>Siren Alert</Text>
                   <Text style={styles.rowSub}>Override silent mode with siren sound</Text>
                 </View>
@@ -228,7 +228,7 @@ export default function SettingsScreen() {
               onPress={() => { setIsChangingEmail(!isChangingEmail); setEmailError(''); setNewEmail(''); }}
             >
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>✉️</Text>
+                <Ionicons name="mail-outline" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Email</Text>
                   <Text style={styles.rowSub}>{email || '...'}</Text>
@@ -280,7 +280,7 @@ export default function SettingsScreen() {
               onPress={() => { setIsChangingPassword(!isChangingPassword); setPasswordError(''); setNewPassword(''); setConfirmPassword(''); }}
             >
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>🔑</Text>
+                <Ionicons name="key-outline" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Change Password</Text>
                   <Text style={styles.rowSub}>Update your password</Text>
@@ -336,7 +336,7 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>⭐</Text>
+                <Ionicons name="star-outline" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Current Plan</Text>
                   <Text style={styles.rowSub}>Free — Year 1 Beta</Text>
@@ -351,7 +351,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/plans')}>
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>🚀</Text>
+                <Ionicons name="rocket-outline" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Upgrade Plan</Text>
                   <Text style={styles.rowSub}>View plans — coming soon</Text>
@@ -367,7 +367,7 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>🟡</Text>
+                <Ionicons name="ellipse" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Double Yellow</Text>
                   <Text style={styles.rowSub}>Version 1.0.0 — Beta</Text>
@@ -379,7 +379,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity style={styles.row} onPress={() => router.push('/privacy')} activeOpacity={0.7}>
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>📄</Text>
+                <Ionicons name="document-text-outline" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Privacy Policy</Text>
                   <Text style={styles.rowSub}>How we use your data</Text>
@@ -392,7 +392,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity style={styles.row} onPress={() => router.push('/terms')} activeOpacity={0.7}>
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>📋</Text>
+                <Ionicons name="clipboard-outline" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Terms of Service</Text>
                   <Text style={styles.rowSub}>Our terms and conditions</Text>
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
   },
-  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2, width: 60 },
+  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   headerTitle: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   savingText: { fontSize: 10, fontWeight: '700', color: '#FFD700', letterSpacing: 2, width: 60, textAlign: 'right' },
   scroll: { flex: 1 },
@@ -434,8 +434,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: '700', color: '#666666', letterSpacing: 3 },
   card: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333333', borderRadius: 12, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  rowIcon: { fontSize: 22 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1, marginRight: 12 },
   rowLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', letterSpacing: 1 },
   rowSub: { fontSize: 11, color: '#555555', letterSpacing: 0.5, marginTop: 2 },
   rowArrow: { fontSize: 20, color: '#444444' },

@@ -3,6 +3,8 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
+import MobileAds from 'react-native-google-mobile-ads';
+import { Platform } from 'react-native';
 import { registerForPushNotifications } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
@@ -12,6 +14,13 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+
+  // Initialise Google Mobile Ads SDK on Android (not needed on iOS)
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      MobileAds().initialize().catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -29,9 +38,14 @@ export default function RootLayout() {
   useEffect(() => {
     if (!initialized) return;
     const inAuthGroup = segments[0] === 'welcome' || segments[0] === 'login' || segments[0] === 'signup';
+    const onVerifyScreen = segments[0] === 'verify-email';
+    const emailVerified = !!session?.user?.email_confirmed_at;
+
     if (!session && !inAuthGroup) {
       router.replace('/welcome');
-    } else if (session && inAuthGroup) {
+    } else if (session && !emailVerified && !onVerifyScreen) {
+      router.replace('/verify-email');
+    } else if (session && emailVerified && (inAuthGroup || onVerifyScreen)) {
       router.replace('/');
     }
   }, [session, initialized, segments]);
@@ -40,14 +54,12 @@ export default function RootLayout() {
   if (session) {
     registerForPushNotifications().then(async (token) => {
       if (token) {
-        console.log('PUSH TOKEN:', token);
-        const { error } = await supabase
-  .from('profiles')
-  .update({ push_token: token })
-  .eq('id', session.user.id);
-console.log('PUSH TOKEN SAVE ERROR:', JSON.stringify(error));
+        await supabase
+          .from('profiles')
+          .update({ push_token: token })
+          .eq('id', session.user.id);
       }
-    });
+    }).catch(() => {});
   }
 }, [session]);
 

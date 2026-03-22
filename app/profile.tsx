@@ -3,6 +3,7 @@ import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Report = {
   id: string;
@@ -24,6 +25,21 @@ type Profile = {
   username: string;
   points: number;
   avatar_url: string | null;
+  tier: string | null;
+};
+
+const TIER_LIMITS: Record<string, number | null> = {
+  free:      null,
+  basic:     8,
+  pro:       20,
+  unlimited: null,
+};
+
+const TIER_LABELS: Record<string, string> = {
+  free:      'FREE',
+  basic:     'BASIC',
+  pro:       'PRO',
+  unlimited: 'UNLIMITED',
 };
 
 export default function ProfileScreen() {
@@ -39,6 +55,7 @@ export default function ProfileScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [hasStreak, setHasStreak] = useState(false);
+  const [monthlyActivations, setMonthlyActivations] = useState(0);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [editedUsername, setEditedUsername] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
@@ -56,9 +73,20 @@ export default function ProfileScreen() {
 
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('username, points, avatar_url')
+        .select('username, points, avatar_url, tier')
         .eq('id', user.id)
         .single();
+
+      // Count this month's activations
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const { count: activationCount } = await supabase
+        .from('parked_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', startOfMonth.toISOString());
+      setMonthlyActivations(activationCount ?? 0);
 
       if (profileData) {
         setProfile(profileData);
@@ -269,12 +297,12 @@ export default function ProfileScreen() {
   const pointsToNextLevel = 100 - pointsProgress;
 
   const badges = [
-    { icon: '⚠️', label: 'FIRST ALERT', earned: reportCount >= 1 },
-    { icon: '📍', label: 'PINNED', earned: reportCount >= 10 },
-    { icon: '📷', label: 'VERIFIED', earned: photoCount >= 1 },
-    { icon: '🔥', label: '7 DAY STREAK', earned: hasStreak },
-    { icon: '👑', label: 'TOP LOOKOUT', earned: ranking === 1 },
-    { icon: '⚡', label: 'RAPID FIRE', earned: reportCount >= 5 },
+    { ionicon: 'warning', label: 'FIRST ALERT', earned: reportCount >= 1 },
+    { ionicon: 'location', label: 'PINNED', earned: reportCount >= 10 },
+    { ionicon: 'camera', label: 'VERIFIED', earned: photoCount >= 1 },
+    { mci: 'fire', label: '7 DAY STREAK', earned: hasStreak },
+    { mci: 'crown', label: 'TOP LOOKOUT', earned: ranking === 1 },
+    { ionicon: 'flash', label: 'RAPID FIRE', earned: reportCount >= 5 },
   ];
 
   const formatTime = (dateStr: string) => {
@@ -381,6 +409,68 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ── Activation Credits Card ── */}
+        {(() => {
+          const tier = profile?.tier ?? 'free';
+          const limit = TIER_LIMITS[tier];
+          const label = TIER_LABELS[tier] ?? 'FREE';
+          const renewal = new Date();
+          renewal.setMonth(renewal.getMonth() + 1);
+          renewal.setDate(1);
+          const renewalStr = renewal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+          const isUnlimited = tier === 'unlimited' || tier === 'free' || limit === null;
+          const used = monthlyActivations;
+          const remaining = limit !== null ? Math.max(0, limit - used) : null;
+          const overQuota = limit !== null && used >= limit;
+          const fillPct = limit !== null ? Math.min(100, (used / limit) * 100) : 0;
+
+          return (
+            <View style={styles.creditsCard}>
+              <View style={styles.creditsTop}>
+                <View>
+                  <Text style={styles.creditsTitle}>ACTIVATIONS</Text>
+                  <Text style={[styles.creditsTier, tier === 'free' && styles.creditsTierFree]}>
+                    {label} PLAN
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => router.push('/plans')} activeOpacity={0.8} style={styles.upgradeBtn}>
+                  <Text style={styles.upgradeBtnText}>
+                    {tier === 'unlimited' ? 'MANAGE' : 'UPGRADE'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {isUnlimited ? (
+                <View style={styles.creditsUnlimitedRow}>
+                  <Text style={styles.creditsUnlimitedText}>∞  UNLIMITED</Text>
+                  {tier === 'free' && (
+                    <Text style={styles.creditsAdNote}>Ads play on each activation</Text>
+                  )}
+                </View>
+              ) : (
+                <>
+                  <View style={styles.creditsCountRow}>
+                    <Text style={[styles.creditsRemaining, overQuota && styles.creditsRemainingOver]}>
+                      {remaining}
+                    </Text>
+                    <Text style={styles.creditsRemainingLabel}>
+                      {overQuota ? 'credits used up — ads will play until' : `of ${limit} remaining — resets`} {renewalStr}
+                    </Text>
+                  </View>
+                  <View style={styles.creditsBar}>
+                    <View style={[
+                      styles.creditsFill,
+                      { width: `${fillPct}%` as any },
+                      overQuota && styles.creditsFillOver,
+                    ]} />
+                  </View>
+                  <Text style={styles.creditsUsed}>{used} used this month</Text>
+                </>
+              )}
+            </View>
+          );
+        })()}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>LEADERBOARD</Text>
           <View style={styles.leaderboardCard}>
@@ -391,9 +481,14 @@ export default function ProfileScreen() {
             ) : (
               leaderboard.map((entry) => (
                 <View key={entry.username} style={[styles.leaderRow, entry.isMe && styles.leaderRowMe]}>
-                  <Text style={[styles.leaderRank, entry.rank <= 3 && styles.leaderRankTop]}>
-                    {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
-                  </Text>
+                  {entry.rank === 1
+                    ? <Text style={[styles.leaderRank, { color: '#FFD700', fontSize: 13 }]}>1ST</Text>
+                    : entry.rank === 2
+                    ? <Text style={[styles.leaderRank, { color: '#C0C0C0', fontSize: 13 }]}>2ND</Text>
+                    : entry.rank === 3
+                    ? <Text style={[styles.leaderRank, { color: '#CD7F32', fontSize: 13 }]}>3RD</Text>
+                    : <Text style={styles.leaderRank}>{`#${entry.rank}`}</Text>
+                  }
                   <Text style={[styles.leaderName, entry.isMe && styles.leaderNameMe]}>
                     {entry.username}{entry.isMe ? ' (you)' : ''}
                   </Text>
@@ -411,7 +506,13 @@ export default function ProfileScreen() {
           <View style={styles.badgesGrid}>
             {badges.map((badge) => (
               <View key={badge.label} style={[styles.badgeCard, !badge.earned && styles.badgeCardLocked]}>
-                <Text style={styles.badgeIcon}>{badge.earned ? badge.icon : '🔒'}</Text>
+                {badge.earned ? (
+                  'ionicon' in badge
+                    ? <Ionicons name={badge.ionicon as any} size={26} color="#FFD700" />
+                    : <MaterialCommunityIcons name={badge.mci as any} size={26} color="#FFD700" />
+                ) : (
+                  <Ionicons name="lock-closed" size={26} color="#444444" />
+                )}
                 <Text style={[styles.badgeLabel, !badge.earned && styles.badgeLabelLocked]}>
                   {badge.label}
                 </Text>
@@ -424,7 +525,7 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>RECENT REPORTS</Text>
           {reports.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>⚠️</Text>
+              <Ionicons name="warning-outline" size={32} color="#666666" />
               <Text style={styles.emptyText}>No reports yet.</Text>
               <Text style={styles.emptySub}>Spot a warden and report it to earn points.</Text>
             </View>
@@ -433,7 +534,10 @@ export default function ProfileScreen() {
               {reports.map((report) => (
                 <View key={report.id} style={styles.reportRow}>
                   <View style={styles.reportLeft}>
-                    <Text style={styles.reportIcon}>{report.photo_verified ? '📷' : '⚠️'}</Text>
+                    {report.photo_verified
+                      ? <Ionicons name="camera" size={20} color="#FFD700" />
+                      : <Ionicons name="warning" size={20} color="#FFD700" />
+                    }
                     <View>
                       <Text style={styles.reportCoords}>
                         {report.latitude.toFixed(4)}, {report.longitude.toFixed(4)}
@@ -465,7 +569,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
   },
-  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2, width: 60 },
+  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   headerTitle: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   scroll: { flex: 1 },
   heroCard: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 8 },
@@ -546,4 +650,105 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD700',
   },
   usernameSaveText: { fontSize: 11, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
+
+  // ── Activation Credits Card ──
+  creditsCard: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333333',
+    borderRadius: 12,
+    padding: 18,
+    gap: 12,
+  },
+  creditsTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  creditsTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#555555',
+    letterSpacing: 3,
+    marginBottom: 2,
+  },
+  creditsTier: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFD700',
+    letterSpacing: 2,
+  },
+  creditsTierFree: {
+    color: '#888888',
+  },
+  upgradeBtn: {
+    backgroundColor: '#FFD700',
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  upgradeBtnText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#0D0D0D',
+    letterSpacing: 2,
+  },
+  creditsUnlimitedRow: {
+    gap: 4,
+  },
+  creditsUnlimitedText: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#FFD700',
+    letterSpacing: 2,
+  },
+  creditsAdNote: {
+    fontSize: 11,
+    color: '#555555',
+    letterSpacing: 1,
+  },
+  creditsCountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  creditsRemaining: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#FFD700',
+    letterSpacing: 1,
+  },
+  creditsRemainingOver: {
+    color: '#E63946',
+  },
+  creditsRemainingLabel: {
+    fontSize: 11,
+    color: '#555555',
+    letterSpacing: 1,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  creditsBar: {
+    height: 4,
+    backgroundColor: '#333333',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  creditsFill: {
+    height: 4,
+    backgroundColor: '#FFD700',
+    borderRadius: 2,
+  },
+  creditsFillOver: {
+    backgroundColor: '#E63946',
+  },
+  creditsUsed: {
+    fontSize: 10,
+    color: '#444444',
+    letterSpacing: 1,
+    marginTop: -4,
+  },
 });

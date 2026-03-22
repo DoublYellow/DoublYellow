@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
   },
-  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2, width: 60 },
+  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   headerTitle: { fontSize: 14, fontWeight: '900', color: '#FFFFFF', letterSpacing: 3 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 24, paddingTop: 8, gap: 20 },

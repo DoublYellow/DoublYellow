@@ -1,6 +1,7 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 function SectionTitle({ children }: { children: string }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
@@ -60,12 +61,12 @@ export default function AppealScreen() {
           <Card>
             <View style={styles.ticketTypeRow}>
               <View style={[styles.ticketTypeBox, styles.ticketTypeCouncil]}>
-                <Text style={styles.ticketTypeIcon}>🏛️</Text>
+                <MaterialIcons name="account-balance" size={28} color="#FFD700" />
                 <Text style={styles.ticketTypeLabel}>COUNCIL PCN</Text>
                 <Text style={styles.ticketTypeSub}>Issued by local council. Legally enforceable fine. Check the ticket — it will say "Penalty Charge Notice".</Text>
               </View>
               <View style={[styles.ticketTypeBox, styles.ticketTypePrivate]}>
-                <Text style={styles.ticketTypeIcon}>🏢</Text>
+                <MaterialIcons name="business" size={28} color="#FFD700" />
                 <Text style={styles.ticketTypeLabel}>PRIVATE TICKET</Text>
                 <Text style={styles.ticketTypeSub}>Issued by a private company (car park operator). It's an invoice, NOT a fine. You're NOT legally obliged to pay unless they take you to court.</Text>
               </View>
@@ -143,18 +144,18 @@ export default function AppealScreen() {
           <SectionTitle>COMMON WINNING GROUNDS</SectionTitle>
           <Card>
             {[
-              { icon: '🪧', text: 'Signage was missing, obscured, or confusing' },
-              { icon: '🧾', text: 'You paid but the ticket was still issued' },
-              { icon: '❌', text: 'The ticket has errors (wrong reg, time, amount)' },
-              { icon: '📍', text: 'Vehicle was not parked where alleged' },
-              { icon: '🔓', text: 'Private: operator didn\'t follow Protection of Freedoms Act 2012' },
-              { icon: '⏱️', text: 'Private: you weren\'t given the required 10-minute grace period' },
-              { icon: '🚗', text: 'Vehicle was stolen at the time' },
+              { icon: <MaterialIcons name="signpost" size={20} color="#FFD700" />, text: 'Signage was missing, obscured, or confusing' },
+              { icon: <MaterialIcons name="receipt" size={20} color="#FFD700" />, text: 'You paid but the ticket was still issued' },
+              { icon: <Ionicons name="close-circle" size={20} color="#FFD700" />, text: 'The ticket has errors (wrong reg, time, amount)' },
+              { icon: <Ionicons name="location" size={20} color="#FFD700" />, text: 'Vehicle was not parked where alleged' },
+              { icon: <Ionicons name="lock-open-outline" size={20} color="#FFD700" />, text: 'Private: operator didn\'t follow Protection of Freedoms Act 2012' },
+              { icon: <Ionicons name="timer-outline" size={20} color="#FFD700" />, text: 'Private: you weren\'t given the required 10-minute grace period' },
+              { icon: <Ionicons name="car-outline" size={20} color="#FFD700" />, text: 'Vehicle was stolen at the time' },
             ].map((item, i) => (
               <View key={i}>
                 {i > 0 && <Divider />}
                 <View style={styles.groundRow}>
-                  <Text style={styles.groundIcon}>{item.icon}</Text>
+                  {item.icon}
                   <Text style={styles.groundText}>{item.text}</Text>
                 </View>
               </View>
@@ -231,7 +232,7 @@ export default function AppealScreen() {
         {/* Important note about private tickets */}
         <View style={styles.section}>
           <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>💡 IMPORTANT: PRIVATE TICKETS</Text>
+            <Text style={styles.infoTitle}><Ionicons name="bulb-outline" size={13} color="#FFD700" /> IMPORTANT: PRIVATE TICKETS</Text>
             <Text style={styles.infoText}>
               Private parking fines are <Text style={styles.infoHighlight}>NOT legally enforceable fines</Text> — they are invoices for an alleged breach of contract. You are not legally required to pay unless the company takes you to court and wins. Many never do. Always appeal first.
             </Text>
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
   },
-  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2, width: 60 },
+  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   headerTitle: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 3 },
   scroll: { flex: 1 },
   introBox: {

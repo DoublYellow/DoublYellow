@@ -1,11 +1,11 @@
-import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useNavigation } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Animated, Dimensions, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { supabase } from '../lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CONFETTI_COLORS = ['#FFD700', '#FFD700', '#E63946', '#00C853', '#2196F3', '#FF9800', '#E91E63', '#FFFFFF', '#9C27B0', '#FFD700'];
@@ -65,9 +65,6 @@ export default function WardenScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [pinCoord, setPinCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [photoVerified, setPhotoVerified] = useState(false);
-  const [photoVerifying, setPhotoVerifying] = useState(false);
-  const [photoAttempts, setPhotoAttempts] = useState(0);
-  const [photoRejectedFinal, setPhotoRejectedFinal] = useState(false);
   const [photoTaken, setPhotoTaken] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -88,11 +85,14 @@ export default function WardenScreen() {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
+      // Use last known position immediately so the map opens on the right spot
+      const last = await Location.getLastKnownPositionAsync({});
+      if (last) {
+        setLocation({ latitude: last.coords.latitude, longitude: last.coords.longitude });
+      }
+      // Then refine with accurate GPS
       const loc = await Location.getCurrentPositionAsync({});
-      setLocation({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      });
+      setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
     })();
   }, []);
 
@@ -101,58 +101,18 @@ export default function WardenScreen() {
   };
 
   const handlePhotoVerify = async () => {
-    if (photoVerified || photoRejectedFinal) return;
+    if (photoVerified) return;
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
-      quality: 0.5,
+      quality: 0.3,
     });
     if (result.canceled) return;
 
-    const uri = result.assets[0].uri;
+    // Any photo taken counts as verified — no server call needed
     setPhotoTaken(true);
-    setPhotoVerifying(true);
-
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/verify-warden-photo`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ imageBase64: base64 }),
-        }
-      );
-      const data = await res.json();
-
-      if (data.verified) {
-        setPhotoVerified(true);
-      } else {
-        const newAttempts = photoAttempts + 1;
-        setPhotoAttempts(newAttempts);
-        if (newAttempts >= 2) {
-          // Second failure — accept photo submission but no bonus
-          setPhotoRejectedFinal(true);
-        }
-        // First failure — UI will prompt to try again
-      }
-    } catch (e) {
-      console.log('VERIFY ERROR:', e);
-      // On network error, don't penalise — just mark unverified
-      const newAttempts = photoAttempts + 1;
-      setPhotoAttempts(newAttempts);
-      if (newAttempts >= 2) setPhotoRejectedFinal(true);
-    }
-
-    setPhotoVerifying(false);
+    setPhotoVerified(true);
   };
 
   const handleSubmit = async () => {
@@ -307,7 +267,7 @@ export default function WardenScreen() {
             );
           })}
         </View>
-        <Text style={styles.successEmoji}>⚠️</Text>
+        <Ionicons name="warning" size={64} color="#E63946" />
         <Text style={styles.successTitle}>ALERT SENT</Text>
         <Text style={styles.successSub}>Drivers in your area have been notified.</Text>
         <Text style={styles.successPoints}>+{pointsEarned} pts</Text>
@@ -326,88 +286,67 @@ export default function WardenScreen() {
   return (
     <SafeAreaView style={styles.container}>
 
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>WARDEN SPOTTED</Text>
-          <Text style={styles.headerSub}>Drop a pin where you saw them</Text>
-        </View>
+      <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Text style={styles.backText}>← BACK</Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>WARDEN SPOTTED</Text>
+        <Text style={styles.headerSub}>Drop a pin where you saw them</Text>
+      </View>
 
       <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
-          showsUserLocation
-          customMapStyle={darkMapStyle}
-          onPress={handleMapPress}
-          region={location ? {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          } : {
-            latitude: 51.5074,
-            longitude: -0.1278,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-        >
-          {pinCoord && (
-            <Marker coordinate={pinCoord} pinColor="#FFD700" />
-          )}
-        </MapView>
-        {!pinCoord && (
-          <View style={styles.mapHint} pointerEvents="none">
-            <Text style={styles.mapHintText}>TAP MAP TO PLACE WARDEN</Text>
+        {location ? (
+          <>
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+              showsUserLocation
+              customMapStyle={Platform.OS === 'android' ? darkMapStyle : undefined}
+              onPress={handleMapPress}
+              initialRegion={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              }}
+            >
+              {pinCoord && (
+                <Marker coordinate={pinCoord} pinColor="#FFD700" />
+              )}
+            </MapView>
+            {!pinCoord && (
+              <View style={styles.mapHint} pointerEvents="none">
+                <Text style={styles.mapHintText}>TAP MAP TO PLACE WARDEN</Text>
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.mapLoading}>
+            <Text style={styles.mapLoadingText}>GETTING YOUR LOCATION...</Text>
           </View>
         )}
       </View>
 
       <TouchableOpacity
-        style={[
-          styles.photoButton,
-          photoVerified && styles.photoButtonVerified,
-          photoRejectedFinal && styles.photoButtonRejected,
-          (photoAttempts === 1 && !photoVerified && !photoRejectedFinal) && styles.photoButtonRetry,
-        ]}
+        style={[styles.photoButton, photoVerified && styles.photoButtonVerified]}
         onPress={handlePhotoVerify}
         activeOpacity={0.7}
-        disabled={photoVerifying || photoVerified || photoRejectedFinal}
+        disabled={photoVerified}
       >
-        <Text style={styles.photoIcon}>
-          {photoVerifying ? '⏳' : photoVerified ? '✓' : photoRejectedFinal ? '⚠️' : '📷'}
-        </Text>
+        {photoVerified ? (
+          <Ionicons name="checkmark" size={24} color="#00C853" />
+        ) : (
+          <Ionicons name="camera" size={24} color="#FFD700" />
+        )}
         <View style={styles.photoTextWrapper}>
-          <Text style={[
-            styles.photoLabel,
-            photoVerified && styles.photoLabelVerified,
-            photoRejectedFinal && styles.photoLabelRejected,
-            (photoAttempts === 1 && !photoVerified && !photoRejectedFinal) && styles.photoLabelRetry,
-          ]}>
-            {photoVerifying
-              ? 'CHECKING PHOTO...'
-              : photoVerified
-              ? 'PHOTO VERIFIED'
-              : photoRejectedFinal
-              ? 'PHOTO UNVERIFIED'
-              : photoAttempts === 1
-              ? 'COULDN\'T VERIFY — TRY AGAIN'
-              : 'PHOTO VERIFY'}
+          <Text style={[styles.photoLabel, photoVerified && styles.photoLabelVerified]}>
+            {photoVerified ? 'PHOTO VERIFIED' : 'PHOTO VERIFY'}
           </Text>
-          <Text style={[styles.photoOptional, photoVerified && styles.photoPointsLabel, photoRejectedFinal && styles.photoRejectedSub]}>
-            {photoVerifying
-              ? 'Checking for a traffic warden...'
-              : photoVerified
-              ? '+50 pts bonus'
-              : photoRejectedFinal
-              ? 'Report submitted — photo could not be verified'
-              : photoAttempts === 1
-              ? 'We couldn\'t confirm a warden in that photo'
-              : '* optional — earn +50 extra pts'}
+          <Text style={[styles.photoOptional, photoVerified && styles.photoPointsLabel]}>
+            {photoVerified ? '+50 pts bonus' : '* optional — earn +50 extra pts'}
           </Text>
         </View>
         {photoVerified && <Text style={styles.photoBonusTag}>BONUS</Text>}
@@ -447,15 +386,16 @@ const darkMapStyle = [
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  topBar: {
     paddingHorizontal: 24,
-    paddingTop: 56,
-    paddingBottom: 12,
+    paddingTop: Platform.OS === 'android' ? 52 : 12,
+    paddingBottom: 8,
   },
-  headerLeft: { gap: 4 },
+  header: {
+    paddingHorizontal: 24,
+    paddingBottom: 12,
+    gap: 4,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: '900',
@@ -482,6 +422,8 @@ const styles = StyleSheet.create({
     borderColor: '#333333',
   },
   map: { flex: 1 },
+  mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A1A1A' },
+  mapLoadingText: { fontSize: 11, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   mapHint: {
     position: 'absolute',
     bottom: 16,
@@ -516,14 +458,6 @@ const styles = StyleSheet.create({
     borderColor: '#00C853',
     backgroundColor: '#0A1F0A',
   },
-  photoButtonRejected: {
-    borderColor: '#E63946',
-    backgroundColor: '#1F0A0A',
-  },
-  photoButtonRetry: {
-    borderColor: '#FF9800',
-    backgroundColor: '#1F1500',
-  },
   photoIcon: { fontSize: 24, color: '#00C853' },
   photoTextWrapper: { flex: 1 },
   photoLabel: {
@@ -533,9 +467,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   photoLabelVerified: { color: '#00C853' },
-  photoLabelRejected: { color: '#E63946' },
-  photoLabelRetry: { color: '#FF9800' },
-  photoRejectedSub: { color: '#E63946' },
   photoOptional: {
     fontSize: 11,
     color: '#555555',
@@ -588,7 +519,6 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   confettiContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
-  successEmoji: { fontSize: 64 },
   successTitle: {
     fontSize: 52,
     fontWeight: '900',

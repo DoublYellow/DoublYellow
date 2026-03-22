@@ -19,8 +19,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
   if (finalStatus !== 'granted') return null;
 
-  const fcmToken = await messaging().getToken();
-  console.log('FCM TOKEN:', fcmToken);
+  let fcmToken: string | null = null;
+  try {
+    fcmToken = await messaging().getToken();
+  } catch {
+    return null;
+  }
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('warden-alerts', {

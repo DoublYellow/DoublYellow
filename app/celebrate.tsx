@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -177,20 +178,35 @@ export default function CelebrateScreen() {
     })();
   }, [reporterIdsStr]);
 
-  const handleThumbsUp = (lookoutId: string) => {
+  const handleThumbsUp = async (lookoutId: string) => {
+    console.warn('CHEERS TAPPED — currentUserId:', currentUserId, 'lookoutId:', lookoutId);
+    if (!currentUserId) return;
+    // Optimistically update UI
     setLookouts((prev) =>
       prev.map((l) => (l.id === lookoutId ? { ...l, thanked: true } : l))
     );
+    // Record thanks in DB + send push notification to lookout
+    const { data, error } = await supabase.functions.invoke('send-thanks', {
+      body: { to_user_id: lookoutId, from_user_id: currentUserId, type: 'cheers' },
+    });
+    console.warn('send-thanks result:', JSON.stringify({ data, error }));
   };
 
   const handleSendPoints = async (lookoutId: string) => {
+    console.warn('POINTS TAPPED — currentUserId:', currentUserId, 'userPoints:', userPoints, 'lookoutId:', lookoutId);
     if (!currentUserId || userPoints < 10) return;
-    await supabase.rpc('increment_points', { user_id: currentUserId, amount: -10 });
-    await supabase.rpc('increment_points', { user_id: lookoutId, amount: 10 });
+    // Optimistically update UI
     setUserPoints((prev) => prev - 10);
     setLookouts((prev) =>
       prev.map((l) => (l.id === lookoutId ? { ...l, pointsSent: true, thanked: true } : l))
     );
+    // Transfer points in DB
+    await supabase.rpc('increment_points', { user_id: currentUserId, amount: -10 });
+    await supabase.rpc('increment_points', { user_id: lookoutId, amount: 10 });
+    // Record thanks in DB + send push notification to lookout
+    await supabase.functions.invoke('send-thanks', {
+      body: { to_user_id: lookoutId, from_user_id: currentUserId, type: 'points' },
+    });
   };
 
   return (
@@ -237,26 +253,26 @@ export default function CelebrateScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-        <Text style={styles.bigEmoji}>🎉</Text>
+        <Ionicons name="happy" size={80} color="#FFD700" />
         <Text style={styles.title}>NO TICKET!</Text>
         <Text style={styles.subtitle}>You got away with it. Drive safe!</Text>
 
         {lookouts.length > 0 && (
           <View style={styles.lookoutsSection}>
             <Text style={styles.lookoutsTitle}>YOUR LOOKOUTS HAD YOUR BACK</Text>
-            <Text style={styles.lookoutsSub}>Show them some love 👇</Text>
+            <Text style={styles.lookoutsSub}>Show them some love</Text>
 
             {lookouts.map((lookout) => (
               <View key={lookout.id} style={styles.lookoutCard}>
                 <View style={styles.lookoutTop}>
-                  <Text style={styles.lookoutAvatar}>👀</Text>
+                  <Ionicons name="eye-outline" size={28} color="#FFD700" />
                   <Text style={styles.lookoutUsername}>@{lookout.username}</Text>
                 </View>
 
                 {lookout.thanked ? (
                   <View style={styles.thankedBadge}>
                     <Text style={styles.thankedText}>
-                      {lookout.pointsSent ? '🎁 +10 points sent — legend!' : '👍 Cheers sent!'}
+                      {lookout.pointsSent ? <><Ionicons name="gift-outline" size={13} color="#00C853" /> +10 points sent — legend!</> : <><Ionicons name="thumbs-up-outline" size={13} color="#00C853" /> Cheers sent!</>}
                     </Text>
                   </View>
                 ) : (
@@ -266,7 +282,7 @@ export default function CelebrateScreen() {
                       onPress={() => handleThumbsUp(lookout.id)}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.actionIcon}>👍</Text>
+                      <Ionicons name="thumbs-up-outline" size={20} color="#FFFFFF" />
                       <Text style={styles.actionLabel}>CHEERS</Text>
                     </TouchableOpacity>
 
@@ -276,7 +292,7 @@ export default function CelebrateScreen() {
                       activeOpacity={0.7}
                       disabled={userPoints < 10}
                     >
-                      <Text style={styles.actionIcon}>🎁</Text>
+                      <Ionicons name="gift-outline" size={20} color={userPoints >= 10 ? "#FFD700" : "#444444"} />
                       <Text style={[styles.actionLabel, userPoints >= 10 && styles.actionLabelPoints]}>+10 PTS</Text>
                     </TouchableOpacity>
 
@@ -285,7 +301,7 @@ export default function CelebrateScreen() {
                       activeOpacity={0.7}
                       disabled
                     >
-                      <Text style={styles.actionIcon}>☕</Text>
+                      <Ionicons name="cafe-outline" size={20} color="#555555" />
                       <Text style={[styles.actionLabel, styles.actionLabelCoffee]}>COFFEE</Text>
                       <View style={styles.comingSoonBadge}>
                         <Text style={styles.comingSoonText}>SOON</Text>

@@ -1,17 +1,32 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+
+const getPlanIcon = (id: string) => {
+  switch (id) {
+    case 'free':
+      return <Ionicons name="ellipse" size={32} color="#888888" />;
+    case 'basic':
+      return <Ionicons name="star" size={32} color="#FFD700" />;
+    case 'pro':
+      return <Ionicons name="rocket" size={32} color="#FFD700" />;
+    case 'unlimited':
+      return <MaterialCommunityIcons name="crown" size={32} color="#FFD700" />;
+    default:
+      return null;
+  }
+};
 
 const PLANS = [
   {
     id: 'free',
-    icon: '🟡',
     name: 'FREE',
     price: '£0',
     period: '/ month',
     tagline: 'Get started with Double Yellow',
     features: [
-      'Up to 10 activations per month',
+      'Unlimited activations',
       'Push notifications',
       'Siren alert',
       'Warden reporting',
@@ -25,13 +40,12 @@ const PLANS = [
   },
   {
     id: 'basic',
-    icon: '⭐',
     name: 'BASIC',
     price: '£2.99',
     period: '/ month',
     tagline: 'Perfect for regular parkers',
     features: [
-      '10 activations per month',
+      '8 activations per month',
       'Push notifications',
       'Siren alert',
       'Warden reporting',
@@ -45,13 +59,12 @@ const PLANS = [
   },
   {
     id: 'pro',
-    icon: '🚀',
     name: 'PRO',
     price: '£5.99',
     period: '/ month',
     tagline: 'For the frequent driver',
     features: [
-      '31 activations per month',
+      '20 activations per month',
       'Push notifications',
       'Siren alert',
       'Warden reporting',
@@ -66,7 +79,6 @@ const PLANS = [
   },
   {
     id: 'unlimited',
-    icon: '👑',
     name: 'UNLIMITED',
     price: '£15.99',
     period: '/ month',
@@ -124,14 +136,8 @@ export default function PlansScreen() {
                 <Text style={styles.popularText}>MOST POPULAR</Text>
               </View>
             )}
-            {plan.comingSoon && (
-              <View style={styles.soonBadge}>
-                <Text style={styles.soonText}>COMING SOON</Text>
-              </View>
-            )}
-
             <View style={styles.planHeader}>
-              <Text style={styles.planIcon}>{plan.icon}</Text>
+              {getPlanIcon(plan.id)}
               <View style={styles.planTitleRow}>
                 <Text style={[styles.planName, plan.highlight && styles.planNameHighlight]}>
                   {plan.name}
@@ -139,6 +145,11 @@ export default function PlansScreen() {
                 <Text style={styles.planTagline}>{plan.tagline}</Text>
               </View>
               <View style={styles.planPriceCol}>
+                {plan.comingSoon && (
+                  <View style={styles.soonBadge}>
+                    <Text style={styles.soonText}>COMING SOON</Text>
+                  </View>
+                )}
                 <Text style={[styles.planPrice, plan.highlight && styles.planPriceHighlight]}>
                   {plan.price}
                 </Text>
@@ -151,7 +162,7 @@ export default function PlansScreen() {
             <View style={styles.featuresList}>
               {plan.features.map((f) => (
                 <View key={f} style={styles.featureRow}>
-                  <Text style={styles.featureTick}>✓</Text>
+                  <Ionicons name="checkmark" size={12} color="#FFD700" />
                   <Text style={styles.featureText}>{f}</Text>
                 </View>
               ))}
@@ -198,7 +209,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
   },
-  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2, width: 60 },
+  backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   headerTitle: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   scroll: { flex: 1 },
   intro: { alignItems: 'center', paddingVertical: 24, gap: 8 },
@@ -230,13 +241,12 @@ const styles = StyleSheet.create({
   },
   popularText: { fontSize: 9, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
   soonBadge: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
     backgroundColor: '#2A2A2A',
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    alignSelf: 'flex-end',
+    marginBottom: 4,
   },
   soonText: { fontSize: 8, fontWeight: '900', color: '#666666', letterSpacing: 2 },
   planHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },

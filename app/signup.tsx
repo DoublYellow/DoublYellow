@@ -41,8 +41,8 @@ export default function SignUpScreen() {
       setError('Passwords do not match.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
     setLoading(true);
@@ -71,7 +71,12 @@ export default function SignUpScreen() {
     }
 
     setLoading(false);
-    router.replace('/');
+    // If email confirmation is required, Supabase returns a user but no session
+    if (data.session) {
+      router.replace('/');
+    } else {
+      router.replace('/verify-email');
+    }
   };
 
   return (

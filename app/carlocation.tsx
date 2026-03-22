@@ -1,8 +1,8 @@
 import * as Location from 'expo-location';
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 
 export default function CarLocationScreen() {
   const navigation = useNavigation();
@@ -18,10 +18,18 @@ export default function CarLocationScreen() {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
+      // Use last known position immediately so the map opens on the right spot
+      const last = await Location.getLastKnownPositionAsync({});
+      if (last) {
+        const coords = { latitude: last.coords.latitude, longitude: last.coords.longitude };
+        setCurrentLocation(coords);
+        setPendingPin(coords);
+      }
+      // Then refine with accurate GPS
       const loc = await Location.getCurrentPositionAsync({});
       const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setCurrentLocation(coords);
-      setPendingPin(coords);
+      if (!pendingPin) setPendingPin(coords);
     })();
   }, []);
 
@@ -48,33 +56,29 @@ export default function CarLocationScreen() {
         </TouchableOpacity>
       </View>
 
-      <MapView
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        showsUserLocation
-        customMapStyle={darkMapStyle}
-        onPress={(e: MapPressEvent) => setPendingPin(e.nativeEvent.coordinate)}
-        region={pendingPin ? {
-          latitude: pendingPin.latitude,
-          longitude: pendingPin.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        } : currentLocation ? {
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        } : {
-          latitude: 51.5074,
-          longitude: -0.1278,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
-      >
-        {pendingPin && (
-          <Marker coordinate={pendingPin} pinColor="#E63946" />
-        )}
-      </MapView>
+      {currentLocation ? (
+        <MapView
+          style={styles.map}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+          showsUserLocation
+          customMapStyle={Platform.OS === 'android' ? darkMapStyle : undefined}
+          onPress={(e: MapPressEvent) => setPendingPin(e.nativeEvent.coordinate)}
+          initialRegion={{
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          }}
+        >
+          {pendingPin && (
+            <Marker coordinate={pendingPin} pinColor="#E63946" />
+          )}
+        </MapView>
+      ) : (
+        <View style={styles.mapLoading}>
+          <Text style={styles.mapLoadingText}>GETTING YOUR LOCATION...</Text>
+        </View>
+      )}
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()} activeOpacity={0.7}>
@@ -134,6 +138,8 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
+  mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A1A1A' },
+  mapLoadingText: { fontSize: 11, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   footer: {
     flexDirection: 'row',
     gap: 12,

@@ -62,7 +62,7 @@ export default function HomeScreen() {
         >
           {isParkedActive ? (
             <Animated.View style={[styles.activatedOverlay, { opacity: pulse }]}>
-              <Text style={styles.activatedText}>ACTIVATED</Text>
+              <Text style={styles.activatedText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>ACTIVATED</Text>
               <Text style={styles.activatedSub}>Tap to manage</Text>
             </Animated.View>
           ) : (
@@ -164,7 +164,9 @@ const styles = StyleSheet.create({
     fontSize: 52,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 8,
+    letterSpacing: 3,
+    width: '100%',
+    textAlign: 'center',
   },
   activatedSub: {
     fontSize: 13,
