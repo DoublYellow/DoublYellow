@@ -175,6 +175,11 @@ export default function CelebrateScreen() {
         thanked: false,
         pointsSent: false,
       })));
+
+      // Credit each lookout with saving this driver
+      for (const id of validIds) {
+        await supabase.rpc('increment_drivers_saved', { target_user_id: id, amount: 1 });
+      }
     })();
   }, [reporterIdsStr]);
 

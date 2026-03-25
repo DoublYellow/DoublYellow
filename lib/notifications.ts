@@ -1,5 +1,5 @@
-import messaging from '@react-native-firebase/messaging';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
@@ -19,13 +19,6 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
   if (finalStatus !== 'granted') return null;
 
-  let fcmToken: string | null = null;
-  try {
-    fcmToken = await messaging().getToken();
-  } catch {
-    return null;
-  }
-
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('warden-alerts', {
       name: 'Warden Alerts',
@@ -36,7 +29,13 @@ export async function registerForPushNotifications(): Promise<string | null> {
     });
   }
 
-  return fcmToken;
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    return tokenData.data;
+  } catch {
+    return null;
+  }
 }
 
 export async function sendLocalNotification(title: string, body: string) {

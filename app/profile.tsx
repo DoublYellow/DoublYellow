@@ -3,6 +3,7 @@ import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { getRank, getNextRank } from '../lib/ranks';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Report = {
@@ -26,6 +27,7 @@ type Profile = {
   points: number;
   avatar_url: string | null;
   tier: string | null;
+  drivers_saved: number;
 };
 
 const TIER_LIMITS: Record<string, number | null> = {
@@ -73,7 +75,7 @@ export default function ProfileScreen() {
 
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('username, points, avatar_url, tier')
+        .select('username, points, avatar_url, tier, drivers_saved')
         .eq('id', user.id)
         .single();
 
@@ -292,9 +294,9 @@ export default function ProfileScreen() {
     );
   };
 
-  const level = profile ? Math.floor(profile.points / 100) + 1 : 1;
-  const pointsProgress = profile ? profile.points % 100 : 0;
-  const pointsToNextLevel = 100 - pointsProgress;
+  const driversSaved = profile?.drivers_saved ?? 0;
+  const rankTitle = getRank(driversSaved);
+  const nextRank = getNextRank(driversSaved);
 
   const badges = [
     { ionicon: 'warning', label: 'FIRST ALERT', earned: reportCount >= 1 },
@@ -384,20 +386,32 @@ export default function ProfileScreen() {
               style={styles.usernameRow}
             >
               <Text style={styles.username}>{profile?.username ?? '...'}</Text>
-              <Text style={styles.usernameEditIcon}>✎</Text>
+              <View style={styles.usernameEditBadge}>
+                <Text style={styles.avatarEditText}>✎</Text>
+              </View>
             </TouchableOpacity>
           )}
-          <Text style={styles.levelLabel}>LEVEL {level} LOOKOUT</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${pointsProgress}%` }]} />
-          </View>
-          <Text style={styles.progressLabel}>{pointsToNextLevel} pts to next level</Text>
+          <Text style={styles.levelLabel}>{rankTitle.toUpperCase()}</Text>
+          {nextRank ? (
+            <>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${Math.min(100, (driversSaved / (driversSaved + nextRank.needed)) * 100)}%` }]} />
+              </View>
+              <Text style={styles.progressLabel}>{nextRank.needed} saves to {nextRank.title}</Text>
+            </>
+          ) : (
+            <Text style={styles.progressLabel}>MAX RANK ACHIEVED 🏆</Text>
+          )}
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{profile?.points ?? 0}</Text>
             <Text style={styles.statLabel}>TOTAL PTS</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{driversSaved}</Text>
+            <Text style={styles.statLabel}>SAVED</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{ranking !== null ? `#${ranking}` : '...'}</Text>
@@ -584,10 +598,10 @@ const styles = StyleSheet.create({
   progressBar: { width: '80%', height: 4, backgroundColor: '#333333', borderRadius: 2, marginTop: 8 },
   progressFill: { height: 4, backgroundColor: '#FFD700', borderRadius: 2 },
   progressLabel: { fontSize: 11, color: '#555555', letterSpacing: 1 },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 24 },
-  statCard: { flex: 1, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333333', borderRadius: 10, padding: 16, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 24, fontWeight: '900', color: '#FFFFFF' },
-  statLabel: { fontSize: 10, fontWeight: '700', color: '#555555', letterSpacing: 2 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 6, marginBottom: 24 },
+  statCard: { flex: 1, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333333', borderRadius: 10, padding: 12, alignItems: 'center', gap: 4 },
+  statValue: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
+  statLabel: { fontSize: 9, fontWeight: '700', color: '#555555', letterSpacing: 1 },
   section: { paddingHorizontal: 16, marginBottom: 24, gap: 12 },
   sectionTitle: { fontSize: 11, fontWeight: '700', color: '#666666', letterSpacing: 3 },
   leaderboardCard: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333333', borderRadius: 12, overflow: 'hidden' },
@@ -616,7 +630,8 @@ const styles = StyleSheet.create({
   reportCoords: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', letterSpacing: 1 },
   reportTime: { fontSize: 11, color: '#555555', letterSpacing: 1, marginTop: 2 },
   reportPoints: { fontSize: 14, fontWeight: '900', color: '#FFD700', letterSpacing: 2 },
-  usernameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  usernameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  usernameEditBadge: { position: 'absolute', right: -28, backgroundColor: '#FFD700', borderRadius: 10, width: 22, height: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#0D0D0D' },
   usernameEditIcon: { fontSize: 16, color: '#555555', marginTop: 4 },
   usernameEditWrapper: { width: '100%', paddingHorizontal: 24, gap: 8, alignItems: 'center' },
   usernameInput: {
