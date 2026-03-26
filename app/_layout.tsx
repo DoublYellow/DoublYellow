@@ -37,7 +37,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!initialized) return;
-    const inAuthGroup = segments[0] === 'welcome' || segments[0] === 'login' || segments[0] === 'signup';
+    const inAuthGroup = segments[0] === 'welcome' || segments[0] === 'login' || segments[0] === 'signup' || segments[0] === 'forgot-password';
     const onVerifyScreen = segments[0] === 'verify-email';
     const emailVerified = !!session?.user?.email_confirmed_at;
 

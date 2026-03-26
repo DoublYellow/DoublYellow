@@ -2,10 +2,12 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useNavigation } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { playAlertSent } from '../lib/sounds';
+import HapticButton from '../components/HapticButton';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CONFETTI_COLORS = ['#FFD700', '#FFD700', '#E63946', '#00C853', '#2196F3', '#FF9800', '#E91E63', '#FFFFFF', '#9C27B0', '#FFD700'];
@@ -71,8 +73,11 @@ export default function WardenScreen() {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [newBadges, setNewBadges] = useState<string[]>([]);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+  const [username, setUsername] = useState<string>('');
+  const [totalReports, setTotalReports] = useState(0);
 
   const RATE_LIMIT_MINUTES = 5;
+  const RATE_LIMIT_MAX = 2;
   const mapRef = useRef<MapView>(null);
   const fallingPieces = useRef(makeFallingPieces()).current;
   const burstPieces = useRef(makeBurstPieces()).current;
@@ -126,24 +131,29 @@ export default function WardenScreen() {
       return;
     }
 
-    // Rate limit check — block if last report was within RATE_LIMIT_MINUTES
-    const { data: lastReport } = await supabase
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+    setUsername(profile?.username ?? '');
+
+    // Rate limit check — block if RATE_LIMIT_MAX reports filed within RATE_LIMIT_MINUTES
+    const windowStart = new Date(Date.now() - RATE_LIMIT_MINUTES * 60 * 1000).toISOString();
+    const { data: recentReports } = await supabase
       .from('warden_reports')
       .select('created_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .gte('created_at', windowStart)
+      .order('created_at', { ascending: true });
 
-    if (lastReport) {
-      const secondsSince = (Date.now() - new Date(lastReport.created_at).getTime()) / 1000;
-      const limitSeconds = RATE_LIMIT_MINUTES * 60;
-      if (secondsSince < limitSeconds) {
-        const minsLeft = Math.ceil((limitSeconds - secondsSince) / 60);
-        setRateLimitMessage(`You can report again in ${minsLeft} minute${minsLeft === 1 ? '' : 's'}.`);
-        setLoading(false);
-        return;
-      }
+    if (recentReports && recentReports.length >= RATE_LIMIT_MAX) {
+      const oldestInWindow = new Date(recentReports[0].created_at).getTime();
+      const windowEnds = oldestInWindow + RATE_LIMIT_MINUTES * 60 * 1000;
+      const minsLeft = Math.ceil((windowEnds - Date.now()) / 60000);
+      setRateLimitMessage(`You've filed ${RATE_LIMIT_MAX} reports in the last ${RATE_LIMIT_MINUTES} mins. Try again in ${minsLeft} minute${minsLeft === 1 ? '' : 's'}.`);
+      setLoading(false);
+      return;
     }
 
     const points = photoVerified ? 100 : 50;
@@ -168,6 +178,7 @@ export default function WardenScreen() {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id);
 
+    setTotalReports(reportCount ?? 1);
     if (reportCount === 1) earned.push('FIRST ALERT');
 
     if (photoVerified) {
@@ -183,6 +194,7 @@ export default function WardenScreen() {
     setNewBadges(earned);
     setLoading(false);
     setSubmitted(true);
+    playAlertSent();
 
     // Fire confetti — burst from sides
     burstPieces.forEach((piece) => {
@@ -220,7 +232,6 @@ export default function WardenScreen() {
     fireRain(0);
     fireRain(1400); // second wave
 
-    setTimeout(() => navigation.goBack(), 3500);
   };
 
   if (submitted) {
@@ -269,16 +280,42 @@ export default function WardenScreen() {
         </View>
         <Ionicons name="warning" size={64} color="#E63946" />
         <Text style={styles.successTitle}>ALERT SENT</Text>
-        <Text style={styles.successSub}>Drivers in your area have been notified.</Text>
-        <Text style={styles.successPoints}>+{pointsEarned} pts</Text>
+
+        <Text style={styles.successThankYou}>
+          {username ? `Thank you, ${username}!` : 'Thank you!'}
+        </Text>
+
+        <Text style={styles.successImpact}>
+          You could have just saved drivers up to{' '}
+          <Text style={styles.successImpactHighlight}>£160 in fines!</Text>
+        </Text>
+
+        <Text style={styles.successSub}>Drivers nearby have been notified.{'\n'}Every spot counts.</Text>
+
+        <Text style={styles.successPoints}>+{pointsEarned} pts earned</Text>
+
+        {totalReports > 1 && (
+          <Text style={styles.successTally}>
+            <Ionicons name="ribbon-outline" size={13} color="#888888" /> You've filed <Text style={styles.successTallyNum}>{totalReports}</Text> alerts — keep it up!
+          </Text>
+        )}
+
         {newBadges.length > 0 && (
           <View style={styles.badgesEarned}>
             <Text style={styles.badgesEarnedLabel}>BADGE UNLOCKED</Text>
             {newBadges.map(badge => (
-              <Text key={badge} style={styles.badgesEarnedItem}>🏅 {badge}</Text>
+              <Text key={badge} style={styles.badgesEarnedItem}><Ionicons name="ribbon-outline" size={18} color="#FFD700" /> {badge}</Text>
             ))}
           </View>
         )}
+
+        <Text style={styles.successEncourage}>Keep spotting. Keep saving.{'\n'}You're making a real difference.{' '}
+          <Ionicons name="heart-outline" size={14} color="#555555" />
+        </Text>
+
+        <HapticButton style={styles.successHomeButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <Text style={styles.successHomeText}>BACK TO HOME</Text>
+        </HapticButton>
       </SafeAreaView>
     );
   }
@@ -287,9 +324,9 @@ export default function WardenScreen() {
     <SafeAreaView style={styles.container}>
 
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
+        <HapticButton onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Text style={styles.backText}>← BACK</Text>
-        </TouchableOpacity>
+        </HapticButton>
       </View>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>WARDEN SPOTTED</Text>
@@ -330,7 +367,7 @@ export default function WardenScreen() {
         )}
       </View>
 
-      <TouchableOpacity
+      <HapticButton
         style={[styles.photoButton, photoVerified && styles.photoButtonVerified]}
         onPress={handlePhotoVerify}
         activeOpacity={0.7}
@@ -350,13 +387,13 @@ export default function WardenScreen() {
           </Text>
         </View>
         {photoVerified && <Text style={styles.photoBonusTag}>BONUS</Text>}
-      </TouchableOpacity>
+      </HapticButton>
 
       <View style={styles.footer}>
         {rateLimitMessage && (
           <Text style={styles.rateLimitText}>⏱ {rateLimitMessage}</Text>
         )}
-        <TouchableOpacity
+        <HapticButton
           style={[styles.submitButton, (!pinCoord || loading) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
           disabled={!pinCoord || loading}
@@ -365,7 +402,7 @@ export default function WardenScreen() {
           <Text style={[styles.submitText, (!pinCoord || loading) && styles.submitTextDisabled]}>
             {loading ? 'SENDING...' : 'REPORT WARDEN'}
           </Text>
-        </TouchableOpacity>
+        </HapticButton>
       </View>
 
     </SafeAreaView>
@@ -525,13 +562,71 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     letterSpacing: 8,
   },
-  successSub: { fontSize: 15, color: '#888888', letterSpacing: 1 },
+  successThankYou: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  successImpact: {
+    fontSize: 16,
+    color: '#AAAAAA',
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: 24,
+  },
+  successImpactHighlight: {
+    color: '#FFD700',
+    fontWeight: '900',
+  },
+  successSub: {
+    fontSize: 14,
+    color: '#666666',
+    letterSpacing: 1,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
   successPoints: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 4,
+    marginTop: 4,
+  },
+  successTally: {
+    fontSize: 13,
+    color: '#888888',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  successTallyNum: {
+    color: '#FFD700',
+    fontWeight: '900',
+  },
+  successEncourage: {
+    fontSize: 14,
+    color: '#555555',
+    textAlign: 'center',
+    lineHeight: 22,
+    letterSpacing: 0.5,
     marginTop: 8,
+    paddingHorizontal: 24,
+  },
+  successHomeButton: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 18,
+    paddingHorizontal: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  successHomeText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0D0D0D',
+    letterSpacing: 4,
   },
   badgesEarned: {
     alignItems: 'center',

@@ -1,7 +1,8 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import HapticButton from '../components/HapticButton';
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -37,9 +38,9 @@ export default function LoginScreen() {
         style={styles.inner}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
+        <HapticButton style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
           <Text style={styles.backText}>← BACK</Text>
-        </TouchableOpacity>
+        </HapticButton>
 
         <View style={styles.titleWrapper}>
           <Text style={styles.title}>LOG IN</Text>
@@ -74,25 +75,25 @@ export default function LoginScreen() {
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <TouchableOpacity
+          <HapticButton
             style={[styles.submitButton, loading && styles.submitButtonDisabled]}
             onPress={handleLogin}
             disabled={loading}
             activeOpacity={0.8}
           >
             <Text style={styles.submitText}>{loading ? 'LOGGING IN...' : 'LOG IN'}</Text>
-          </TouchableOpacity>
+          </HapticButton>
 
-          <TouchableOpacity style={styles.forgotButton} activeOpacity={0.7}>
+          <HapticButton style={styles.forgotButton} onPress={() => router.push('/forgot-password')} activeOpacity={0.7}>
             <Text style={styles.forgotText}>Forgot password?</Text>
-          </TouchableOpacity>
+          </HapticButton>
         </View>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => router.replace('/signup')} activeOpacity={0.7}>
+          <HapticButton onPress={() => router.replace('/signup')} activeOpacity={0.7}>
             <Text style={styles.footerLink}>SIGN UP</Text>
-          </TouchableOpacity>
+          </HapticButton>
         </View>
 
       </KeyboardAvoidingView>

@@ -1,5 +1,6 @@
 export const RANKS = [
-  { title: 'Tipster',            min: 0    },
+  { title: 'New Recruit',        min: 0    },
+  { title: 'Tipster',            min: 1    },
   { title: 'Spotter',            min: 10   },
   { title: 'Lookout',            min: 25   },
   { title: 'Pavement Patroller', min: 50   },

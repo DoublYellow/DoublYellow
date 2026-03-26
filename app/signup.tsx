@@ -1,7 +1,8 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import HapticButton from '../components/HapticButton';
 
 export default function SignUpScreen() {
   const navigation = useNavigation();
@@ -86,9 +87,9 @@ export default function SignUpScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
+          <HapticButton style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
             <Text style={styles.backText}>← BACK</Text>
-          </TouchableOpacity>
+          </HapticButton>
 
           <View style={styles.titleWrapper}>
             <Text style={styles.title}>SIGN UP</Text>
@@ -147,21 +148,21 @@ export default function SignUpScreen() {
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <TouchableOpacity
+            <HapticButton
               style={[styles.submitButton, loading && styles.submitButtonDisabled]}
               onPress={handleSignUp}
               disabled={loading}
               activeOpacity={0.8}
             >
               <Text style={styles.submitText}>{loading ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}</Text>
-            </TouchableOpacity>
+            </HapticButton>
           </View>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.replace('/login')} activeOpacity={0.7}>
+            <HapticButton onPress={() => router.replace('/login')} activeOpacity={0.7}>
               <Text style={styles.footerLink}>LOG IN</Text>
-            </TouchableOpacity>
+            </HapticButton>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

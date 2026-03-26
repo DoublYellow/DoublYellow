@@ -7,11 +7,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { playCelebrate, stopSound } from '../lib/sounds';
+import HapticButton from '../components/HapticButton';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -81,6 +82,12 @@ export default function CelebrateScreen() {
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
+
+  // Play celebration sound on mount, clean up if user leaves early
+  useEffect(() => {
+    playCelebrate();
+    return () => { stopSound(); };
+  }, []);
 
   // Fire confetti on mount
   useEffect(() => {
@@ -282,16 +289,16 @@ export default function CelebrateScreen() {
                   </View>
                 ) : (
                   <View style={styles.lookoutActions}>
-                    <TouchableOpacity
+                    <HapticButton
                       style={styles.actionButton}
                       onPress={() => handleThumbsUp(lookout.id)}
                       activeOpacity={0.7}
                     >
                       <Ionicons name="thumbs-up-outline" size={20} color="#FFFFFF" />
                       <Text style={styles.actionLabel}>CHEERS</Text>
-                    </TouchableOpacity>
+                    </HapticButton>
 
-                    <TouchableOpacity
+                    <HapticButton
                       style={[styles.actionButton, styles.actionButtonPoints, userPoints < 10 && styles.actionButtonDisabled]}
                       onPress={() => handleSendPoints(lookout.id)}
                       activeOpacity={0.7}
@@ -299,9 +306,9 @@ export default function CelebrateScreen() {
                     >
                       <Ionicons name="gift-outline" size={20} color={userPoints >= 10 ? "#FFD700" : "#444444"} />
                       <Text style={[styles.actionLabel, userPoints >= 10 && styles.actionLabelPoints]}>+10 PTS</Text>
-                    </TouchableOpacity>
+                    </HapticButton>
 
-                    <TouchableOpacity
+                    <HapticButton
                       style={[styles.actionButton, styles.actionButtonCoffee]}
                       activeOpacity={0.7}
                       disabled
@@ -311,7 +318,7 @@ export default function CelebrateScreen() {
                       <View style={styles.comingSoonBadge}>
                         <Text style={styles.comingSoonText}>SOON</Text>
                       </View>
-                    </TouchableOpacity>
+                    </HapticButton>
                   </View>
                 )}
               </View>
@@ -323,12 +330,19 @@ export default function CelebrateScreen() {
           </View>
         )}
 
-        <TouchableOpacity style={styles.homeButton} onPress={() => router.replace('/')} activeOpacity={0.8}>
+        <HapticButton style={styles.homeButton} onPress={() => router.replace('/')} activeOpacity={0.8}>
           <Text style={styles.homeText}>BACK TO HOME</Text>
-        </TouchableOpacity>
+        </HapticButton>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 130 }} />
       </ScrollView>
+
+      {/* Double yellow lines — branded footer, always visible */}
+      <View style={styles.doubleYellow} pointerEvents="none">
+        <View style={styles.yellowLine} />
+        <View style={styles.yellowGap} />
+        <View style={styles.yellowLine} />
+      </View>
 
     </SafeAreaView>
   );
@@ -337,11 +351,27 @@ export default function CelebrateScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
   confettiContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
+  doubleYellow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 100,
+    zIndex: 5,
+  },
+  yellowLine: {
+    width: '100%',
+    height: 40,
+    backgroundColor: '#FFD700',
+  },
+  yellowGap: {
+    height: 20,
+    backgroundColor: '#0D0D0D',
+  },
   confettiPiece: { position: 'absolute', top: 0, borderRadius: 2 },
   content: {
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingTop: 160,
     gap: 16,
   },
   bigEmoji: { fontSize: 80 },

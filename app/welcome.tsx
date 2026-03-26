@@ -1,6 +1,7 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import HapticButton from '../components/HapticButton';
 
 export default function WelcomeScreen() {
   const navigation = useNavigation();
@@ -29,34 +30,34 @@ export default function WelcomeScreen() {
           <View style={styles.yellowGap} />
           <View style={styles.yellowLine} />
         </View>
-        <Text style={styles.tagline}>THE COMMUNITY WARDEN ALERT</Text>
+        <Text style={styles.tagline}>A COMMUNITY SAVING MONEY — ONE PARKING FINE AT A TIME.</Text>
       </View>
 
       {/* Buttons */}
       <View style={styles.buttons}>
-        <TouchableOpacity
+        <HapticButton
           style={styles.signUpButton}
           onPress={() => router.push('/signup')}
           activeOpacity={0.8}
         >
           <Text style={styles.signUpText}>SIGN UP</Text>
-        </TouchableOpacity>
+        </HapticButton>
 
-        <TouchableOpacity
+        <HapticButton
           style={styles.loginButton}
           onPress={() => router.push('/login')}
           activeOpacity={0.8}
         >
           <Text style={styles.loginText}>LOG IN</Text>
-        </TouchableOpacity>
+        </HapticButton>
 
-        <TouchableOpacity
-          style={styles.guestButton}
-          onPress={() => router.replace('/')}
+        <HapticButton
+          style={styles.forgotButton}
+          onPress={() => router.push('/forgot-password')}
           activeOpacity={0.7}
         >
-          <Text style={styles.guestText}>CONTINUE AS GUEST</Text>
-        </TouchableOpacity>
+          <Text style={styles.forgotText}>Forgot your password?</Text>
+        </HapticButton>
       </View>
 
     </SafeAreaView>
@@ -133,14 +134,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 4,
   },
-  guestButton: {
-    paddingVertical: 12,
+  forgotButton: {
+    paddingVertical: 8,
     alignItems: 'center',
   },
-  guestText: {
+  forgotText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#444444',
-    letterSpacing: 3,
+    color: '#333333',
+    letterSpacing: 1,
   },
 });

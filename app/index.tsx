@@ -37,8 +37,8 @@ export default function HomeScreen() {
     if (isParkedActive) {
       loopRef.current = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulse, { toValue: 0, duration: 600, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 0.2, duration: 1600, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 1600, useNativeDriver: true }),
         ])
       );
       loopRef.current.start();
@@ -150,15 +150,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D0D0D',
     paddingHorizontal: 24,
   },
-  topHalfActive: {
-    backgroundColor: '#E63946',
-    borderColor: '#E63946',
-  },
   activatedOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#C1121F',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+    zIndex: 2,
   },
   activatedText: {
     fontSize: 52,
