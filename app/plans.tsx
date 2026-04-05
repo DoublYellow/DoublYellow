@@ -1,7 +1,8 @@
 import { useNavigation, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
 
 const getPlanIcon = (id: string) => {
   switch (id) {
@@ -33,7 +34,7 @@ const PLANS = [
       'Leaderboard & badges',
       'Ad-supported',
     ],
-    cta: 'YOUR CURRENT PLAN',
+    cta: 'FREE FOREVER',
     ctaDisabled: true,
     highlight: false,
     comingSoon: false,
@@ -91,6 +92,7 @@ const PLANS = [
       'Leaderboard & badges',
       'No ads',
       'Priority alerts',
+      'Active Track (live GPS mode)',
       'Early access to new features',
     ],
     cta: 'COMING SOON',
@@ -103,10 +105,24 @@ const PLANS = [
 export default function PlansScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const [userTier, setUserTier] = useState<string>('free');
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('tier')
+        .eq('id', user.id)
+        .single();
+      if (data?.tier) setUserTier(data.tier);
+    })();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -172,17 +188,18 @@ export default function PlansScreen() {
               style={[
                 styles.ctaButton,
                 plan.highlight && styles.ctaButtonHighlight,
-                plan.ctaDisabled && styles.ctaButtonDisabled,
+                (plan.ctaDisabled || plan.id === userTier) && styles.ctaButtonDisabled,
+                plan.id === userTier && styles.ctaButtonCurrent,
               ]}
-              disabled={plan.ctaDisabled}
+              disabled={plan.ctaDisabled || plan.id === userTier}
               activeOpacity={0.8}
             >
               <Text style={[
                 styles.ctaText,
                 plan.highlight && styles.ctaTextHighlight,
-                plan.ctaDisabled && styles.ctaTextDisabled,
+                (plan.ctaDisabled || plan.id === userTier) && styles.ctaTextDisabled,
               ]}>
-                {plan.cta}
+                {plan.id === userTier ? 'YOUR CURRENT PLAN' : plan.cta}
               </Text>
             </TouchableOpacity>
           </View>
@@ -273,6 +290,7 @@ const styles = StyleSheet.create({
   },
   ctaButtonHighlight: { backgroundColor: '#FFD700' },
   ctaButtonDisabled: { backgroundColor: '#1E1E1E', borderWidth: 1, borderColor: '#333333' },
+  ctaButtonCurrent: { borderColor: '#FFD700' },
   ctaText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 3 },
   ctaTextHighlight: { color: '#0D0D0D' },
   ctaTextDisabled: { color: '#444444' },

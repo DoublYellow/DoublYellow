@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C1 Comparison</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; color: #fff; padding: 40px 20px; }
+  h1 { text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 4px; color: #FFD700; margin-bottom: 6px; }
+  .subtitle { text-align: center; font-size: 11px; color: #555; letter-spacing: 2px; margin-bottom: 48px; }
+  .grid { display: flex; gap: 48px; justify-content: center; flex-wrap: wrap; }
+  .concept { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 3px; color: #FFD700; }
+  .phone { width: 260px; height: 520px; border-radius: 40px; border: 2px solid #2a2a2a; overflow: hidden; position: relative; background: #0D0D0D; box-shadow: 0 24px 80px rgba(0,0,0,0.7); }
+  .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 80px; height: 24px; background: #0D0D0D; border-radius: 0 0 14px 14px; z-index: 100; border-bottom: 1px solid #1a1a1a; }
+
+  /* shared layout */
+  .screen { width:100%; height:100%; background:#0D0D0D; display:flex; flex-direction:column; }
+  .topbar { padding: 30px 20px 10px; display:flex; justify-content:space-between; align-items:center; }
+  .logo { font-size:10px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .avatar { width:26px; height:26px; border-radius:50%; background:#1a1a1a; border:1px solid #333; }
+  .status-row { padding: 10px 20px 10px; display:flex; align-items:center; gap:7px; }
+  .dot { width:6px; height:6px; border-radius:50%; background:#2a2a2a; }
+  .status-text { font-size:9px; font-weight:700; letter-spacing:2px; color:#333; }
+  .cards { flex:1; display:flex; flex-direction:column; gap:12px; padding:14px 16px 0; }
+  .card { flex:1; border-radius:20px; border:1px solid #222; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; position:relative; overflow:hidden; }
+  .card-yellow { border-color:#FFD700; }
+  .card-red { border-color:#C1121F; }
+  .corner { position:absolute; top:0; right:0; width:60px; height:60px; border-radius:0 20px 0 60px; }
+  .corner-y { background:rgba(255,215,0,0.08); }
+  .corner-r { background:rgba(193,18,31,0.08); }
+  .icon-circle { width:54px; height:54px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .icon-y { background:rgba(255,215,0,0.12); border:1px solid rgba(255,215,0,0.3); }
+  .icon-r { background:rgba(193,18,31,0.12); border:1px solid rgba(193,18,31,0.3); }
+  .card-label { font-size:15px; font-weight:900; letter-spacing:3px; color:#fff; }
+  .card-label-r { color:#C1121F; }
+  .card-sub { font-size:7px; font-weight:700; letter-spacing:1.5px; color:#444; }
+
+  /* double yellow lines strip */
+  .dy-strip { margin: 0; display:flex; flex-direction:column; gap:4px; }
+  .dy-line { height: 3px; background: #FFD700; }
+
+  /* footer */
+  .footer { height:52px; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:space-around; margin-top:10px; }
+  .footer-with-lines { margin-top: 0; }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .tab-dot { width:6px; height:6px; border-radius:50%; background:#222; }
+  .tab-dot-on { background:#FFD700; }
+  .tab-text { font-size:7px; font-weight:700; letter-spacing:1px; color:#333; }
+  .tab-text-on { color:#FFD700; }
+</style>
+</head>
+<body>
+
+<h1>C1 — COMPARISON</h1>
+<p class="subtitle">WITH AND WITHOUT DOUBLE YELLOW LINES</p>
+
+<div class="grid">
+
+  <!-- C1 Standard -->
+  <div class="concept">
+    <div class="label">C1 — STANDARD</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="topbar">
+          <span class="logo">DOUBLEYELLOW</span>
+          <div class="avatar"></div>
+        </div>
+        <div class="status-row">
+          <div class="dot"></div>
+          <span class="status-text">INACTIVE</span>
+        </div>
+        <div class="cards">
+          <div class="card card-yellow">
+            <div class="corner corner-y"></div>
+            <div class="icon-circle icon-y"><span style="font-size:22px">📍</span></div>
+            <div class="card-label">I'VE PARKED</div>
+            <div class="card-sub">ACTIVATE COMMUNITY WATCH</div>
+          </div>
+          <div class="card card-red">
+            <div class="corner corner-r"></div>
+            <div class="icon-circle icon-r"><span style="font-size:22px">⚠️</span></div>
+            <div class="card-label card-label-r">WARDEN SPOTTED</div>
+            <div class="card-sub">REPORT A WARDEN</div>
+          </div>
+        </div>
+        <div class="footer">
+          <div class="tab"><div class="tab-dot"></div><span class="tab-text">PROFILE</span></div>
+          <div class="tab"><div class="tab-dot tab-dot-on"></div><span class="tab-text tab-text-on">HOME</span></div>
+          <div class="tab"><div class="tab-dot"></div><span class="tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C1 + Double Yellow Lines -->
+  <div class="concept">
+    <div class="label">C1 — WITH DOUBLE YELLOW LINES</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="topbar">
+          <span class="logo">DOUBLEYELLOW</span>
+          <div class="avatar"></div>
+        </div>
+        <div class="status-row">
+          <div class="dot"></div>
+          <span class="status-text">INACTIVE</span>
+        </div>
+        <div class="dy-strip">
+          <div class="dy-line"></div>
+          <div class="dy-line"></div>
+        </div>
+        <div class="cards" style="padding-bottom:14px">
+          <div class="card card-yellow">
+            <div class="corner corner-y"></div>
+            <div class="icon-circle icon-y"><span style="font-size:22px">📍</span></div>
+            <div class="card-label">I'VE PARKED</div>
+            <div class="card-sub">ACTIVATE COMMUNITY WATCH</div>
+          </div>
+          <div class="card card-red">
+            <div class="corner corner-r"></div>
+            <div class="icon-circle icon-r"><span style="font-size:22px">⚠️</span></div>
+            <div class="card-label card-label-r">WARDEN SPOTTED</div>
+            <div class="card-sub">REPORT A WARDEN</div>
+          </div>
+        </div>
+        <!-- Double yellow lines -->
+        <div class="dy-strip">
+          <div class="dy-line"></div>
+          <div class="dy-line"></div>
+        </div>
+        <div class="footer footer-with-lines">
+          <div class="tab"><div class="tab-dot"></div><span class="tab-text">PROFILE</span></div>
+          <div class="tab"><div class="tab-dot tab-dot-on"></div><span class="tab-text tab-text-on">HOME</span></div>
+          <div class="tab"><div class="tab-dot"></div><span class="tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

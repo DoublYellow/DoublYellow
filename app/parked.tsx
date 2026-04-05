@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -77,6 +78,14 @@ export default function ParkedScreen() {
   const [adLoaded, setAdLoaded] = useState(false);
   const [userTier, setUserTier] = useState<string>('free');
   const [monthlyActivations, setMonthlyActivations] = useState(0);
+  const [showTimerModal, setShowTimerModal] = useState(false);
+  const [timerHours, setTimerHours] = useState(1);
+  const [timerMinutes, setTimerMinutes] = useState(0);
+  const [ticketExpiresAt, setTicketExpiresAt] = useState<Date | null>(null);
+  const [timerNotificationId, setTimerNotificationId] = useState<string | null>(null);
+  const [activeTrack, setActiveTrack] = useState(false);
+  const liveLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
   const pendingActivateRef = useRef(false);
   const runActivateRef = useRef<() => Promise<void>>(async () => {});
   const interstitialRef = useRef<InterstitialAd | null>(null);
@@ -188,9 +197,10 @@ export default function ParkedScreen() {
     }
   }, [alertVisible]);
 
-  // Real-time subscription — only while active
+  // Real-time subscription — only while active.
+  // Always reads from liveLocationRef so active-track mode works without re-subscribing on every GPS tick.
   useEffect(() => {
-    if (!isActive || !carLocation) return;
+    if (!isActive) return;
     const radiusMetres = parseInt(selectedRadius.replace('m', ''));
     const channel = supabase
       .channel('warden-reports')
@@ -198,10 +208,12 @@ export default function ParkedScreen() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'warden_reports' },
         (payload) => {
+          const currentLocation = liveLocationRef.current;
+          if (!currentLocation) return;
           const { latitude, longitude, created_at } = payload.new;
           const distance = getDistanceMetres(
-            carLocation.latitude,
-            carLocation.longitude,
+            currentLocation.latitude,
+            currentLocation.longitude,
             latitude,
             longitude
           );
@@ -211,7 +223,6 @@ export default function ParkedScreen() {
             setAlertMinutesAgo(minsAgo);
             setAlertIsRecent(false);
             setAlertVisible(true);
-            // Track who sent this alert so we can thank them later
             const reporterId = payload.new.user_id;
             if (reporterId && !alertReporterIdsRef.current.includes(reporterId)) {
               alertReporterIdsRef.current.push(reporterId);
@@ -225,7 +236,28 @@ export default function ParkedScreen() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [isActive, carLocation, selectedRadius]);
+  }, [isActive, selectedRadius]);
+
+  // Active Track GPS watcher — streams live position into liveLocationRef while active
+  useEffect(() => {
+    if (!isActive || !activeTrack) return;
+    let watcher: Location.LocationSubscription | null = null;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      watcher = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 25, timeInterval: 10000 },
+        (loc) => {
+          liveLocationRef.current = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        }
+      );
+      locationWatcherRef.current = watcher;
+    })();
+    return () => {
+      watcher?.remove();
+      locationWatcherRef.current = null;
+    };
+  }, [isActive, activeTrack]);
 
   // Load interstitial ad and listen for events
   useEffect(() => {
@@ -268,8 +300,64 @@ export default function ParkedScreen() {
     return () => { cleanup?.(); };
   }, []);
 
+  const handleSetTimer = async () => {
+    const totalMs = (timerHours * 60 + timerMinutes) * 60 * 1000;
+    if (totalMs <= 10 * 60 * 1000) return; // need more than 10 mins for the warning to fire
+    const expiresAt = new Date(Date.now() + totalMs);
+    setTicketExpiresAt(expiresAt);
+
+    // Cancel any existing timer notification
+    if (timerNotificationId) {
+      await Notifications.cancelScheduledNotificationAsync(timerNotificationId);
+    }
+
+    // Schedule notification 10 minutes before expiry
+    const warningTime = new Date(expiresAt.getTime() - 10 * 60 * 1000);
+    const secondsUntilWarning = Math.max(1, (warningTime.getTime() - Date.now()) / 1000);
+
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⏱ TICKET EXPIRING SOON',
+        body: `Your parking ticket runs out in 10 minutes! Move your car or pay now.`,
+        sound: true,
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secondsUntilWarning },
+    });
+    setTimerNotificationId(id);
+    setShowTimerModal(false);
+  };
+
+  const handleClearTimer = async () => {
+    if (timerNotificationId) {
+      await Notifications.cancelScheduledNotificationAsync(timerNotificationId);
+      setTimerNotificationId(null);
+    }
+    setTicketExpiresAt(null);
+    setShowTimerModal(false);
+  };
+
+  const formatExpiry = (date: Date) => {
+    const h = date.getHours().toString().padStart(2, '0');
+    const m = date.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+  };
+
   const runActivate = async () => {
-    if (!carLocation) return;
+    // In active track mode, get a one-shot GPS fix if no manual location is set
+    let location = carLocation;
+    if (!location) {
+      if (activeTrack) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const loc = await Location.getCurrentPositionAsync({});
+        location = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      } else {
+        return;
+      }
+    }
+    // Seed the live location ref so the subscription has a starting point immediately
+    liveLocationRef.current = location;
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const radiusMetres = parseInt(selectedRadius.replace('m', ''));
@@ -287,8 +375,8 @@ export default function ParkedScreen() {
       .from('parked_sessions')
       .insert({
         user_id: user.id,
-        latitude: carLocation.latitude,
-        longitude: carLocation.longitude,
+        latitude: location.latitude,
+        longitude: location.longitude,
         radius_metres: radiusMetres,
         is_active: true,
       })
@@ -308,7 +396,7 @@ export default function ParkedScreen() {
     if (recentReports) {
       for (const report of recentReports) {
         const distance = getDistanceMetres(
-          carLocation.latitude, carLocation.longitude,
+          location.latitude, location.longitude,
           report.latitude, report.longitude
         );
         if (distance <= radiusMetres) {
@@ -347,6 +435,16 @@ export default function ParkedScreen() {
     await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
     setIsActive(false);
     setSessionId(null);
+    // Stop GPS watcher if active track was running
+    locationWatcherRef.current?.remove();
+    locationWatcherRef.current = null;
+    liveLocationRef.current = null;
+    // Cancel any pending ticket timer notification
+    if (timerNotificationId) {
+      await Notifications.cancelScheduledNotificationAsync(timerNotificationId);
+      setTimerNotificationId(null);
+    }
+    setTicketExpiresAt(null);
   };
 
   const handleNoTicket = async () => {
@@ -406,6 +504,68 @@ export default function ParkedScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+
+      {/* Ticket Timer Modal */}
+      <Modal visible={showTimerModal} transparent animationType="fade">
+        <View style={styles.alertOverlay}>
+          <View style={styles.timerModalBox}>
+            <Ionicons name="timer-outline" size={48} color="#FFD700" />
+            <Text style={styles.timerModalTitle}>SET TICKET TIMER</Text>
+            <Text style={styles.timerModalSub}>We'll remind you 10 minutes before your ticket runs out</Text>
+
+            <View style={styles.timerPickerRow}>
+              {/* Hours */}
+              <View style={styles.timerPickerCol}>
+                <TouchableOpacity onPress={() => setTimerHours(h => Math.min(12, h + 1))} style={styles.timerArrow}>
+                  <Ionicons name="chevron-up" size={24} color="#FFD700" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{timerHours.toString().padStart(2, '0')}</Text>
+                <TouchableOpacity onPress={() => setTimerHours(h => Math.max(0, h - 1))} style={styles.timerArrow}>
+                  <Ionicons name="chevron-down" size={24} color="#FFD700" />
+                </TouchableOpacity>
+                <Text style={styles.timerUnit}>HRS</Text>
+              </View>
+
+              <Text style={styles.timerColon}>:</Text>
+
+              {/* Minutes */}
+              <View style={styles.timerPickerCol}>
+                <TouchableOpacity onPress={() => setTimerMinutes(m => (m + 15) % 60)} style={styles.timerArrow}>
+                  <Ionicons name="chevron-up" size={24} color="#FFD700" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{timerMinutes.toString().padStart(2, '0')}</Text>
+                <TouchableOpacity onPress={() => setTimerMinutes(m => m === 0 ? 45 : m - 15)} style={styles.timerArrow}>
+                  <Ionicons name="chevron-down" size={24} color="#FFD700" />
+                </TouchableOpacity>
+                <Text style={styles.timerUnit}>MIN</Text>
+              </View>
+            </View>
+
+            {(timerHours * 60 + timerMinutes) <= 10 && (
+              <Text style={styles.timerWarning}>Set more than 10 minutes for the reminder to work</Text>
+            )}
+
+            <TouchableOpacity
+              style={[styles.timerConfirmButton, (timerHours * 60 + timerMinutes) <= 10 && styles.timerConfirmDisabled]}
+              onPress={handleSetTimer}
+              disabled={(timerHours * 60 + timerMinutes) <= 10}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.timerConfirmText}>SET REMINDER</Text>
+            </TouchableOpacity>
+
+            {ticketExpiresAt && (
+              <TouchableOpacity onPress={handleClearTimer} style={styles.timerClearButton}>
+                <Text style={styles.timerClearText}>CLEAR TIMER</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity onPress={() => setShowTimerModal(false)} style={styles.timerCancelButton}>
+              <Text style={styles.timerCancelText}>CANCEL</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={alertVisible} transparent animationType="fade">
         <View style={styles.alertOverlay}>
@@ -485,8 +645,27 @@ export default function ParkedScreen() {
             ACTIVATED
           </Animated.Text>
           <Text style={styles.subLabel}>
-            {isActive ? 'Community lookouts are go!' : 'Alerts Switched Off.'}
+            {isActive && activeTrack ? 'Live tracking active' : isActive ? 'Community lookouts are go!' : 'Alerts Switched Off.'}
           </Text>
+
+          {isActive && (
+            <TouchableOpacity
+              style={[styles.timerChip, ticketExpiresAt && styles.timerChipActive]}
+              onPress={() => setShowTimerModal(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="timer-outline"
+                size={16}
+                color={ticketExpiresAt ? '#FFD700' : '#555555'}
+              />
+              <Text style={[styles.timerChipText, ticketExpiresAt && styles.timerChipTextActive]}>
+                {ticketExpiresAt
+                  ? `EXPIRES ${formatExpiry(ticketExpiresAt)}`
+                  : 'SET TICKET TIMER'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -511,21 +690,40 @@ export default function ParkedScreen() {
             <Text style={styles.checkboxLabel}>Save for next time</Text>
           </TouchableOpacity>
 
+          {userTier === 'unlimited' && (
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => !isActive && setActiveTrack(v => !v)}
+              activeOpacity={isActive ? 1 : 0.7}
+            >
+              <View style={[styles.checkbox, activeTrack && styles.checkboxCheckedYellow]}>
+                {activeTrack && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.checkboxLabel}>Active Track</Text>
+                <View style={styles.unlimitedBadge}>
+                  <Text style={styles.unlimitedBadgeText}>UNLIMITED</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
-            style={[styles.locationButton, carLocation && styles.locationButtonSet]}
-            onPress={() => router.push('/carlocation')}
-            activeOpacity={0.7}
+            style={[styles.locationButton, carLocation && !activeTrack && styles.locationButtonSet, activeTrack && styles.locationButtonDisabled]}
+            onPress={() => !activeTrack && router.push('/carlocation')}
+            activeOpacity={activeTrack ? 1 : 0.7}
+            disabled={activeTrack}
           >
-            <Ionicons name="location" size={22} color={carLocation ? '#E63946' : '#666666'} />
+            <Ionicons name="location" size={22} color={activeTrack ? '#333333' : carLocation ? '#E63946' : '#666666'} />
             <View style={styles.locationTextWrapper}>
-              <Text style={[styles.locationLabel, carLocation && styles.locationLabelSet]}>
-                {carLocation ? 'CAR LOCATION SET' : 'SET CAR LOCATION MANUALLY'}
+              <Text style={[styles.locationLabel, !activeTrack && carLocation && styles.locationLabelSet, activeTrack && styles.locationLabelDisabled]}>
+                {activeTrack ? 'LOCATION NOT NEEDED' : carLocation ? 'CAR LOCATION SET' : 'SET CAR LOCATION MANUALLY'}
               </Text>
               <Text style={styles.locationSub}>
-                {carLocation ? 'Tap to update' : 'Defaults to your current GPS'}
+                {activeTrack ? 'GPS updates continuously' : carLocation ? 'Tap to update' : 'Defaults to your current GPS'}
               </Text>
             </View>
-            {carLocation && <Text style={styles.locationTick}>✓</Text>}
+            {!activeTrack && carLocation && <Text style={styles.locationTick}>✓</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -562,7 +760,7 @@ const styles = StyleSheet.create({
   alertButtonRecent: { backgroundColor: '#FFD700' },
   alertButtonText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   alertButtonTextRecent: { color: '#0D0D0D' },
-  topBar: { paddingHorizontal: 20, paddingTop: Platform.OS === 'android' ? 52 : 12, paddingBottom: 12 },
+  topBar: { paddingHorizontal: 20, paddingTop: Platform.OS === 'android' ? 72 : 12, paddingBottom: 12 },
   backButton: {},
   backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   doubleYellow: { marginTop: 8 },
@@ -587,13 +785,18 @@ const styles = StyleSheet.create({
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   checkbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 1, borderColor: '#444444', backgroundColor: '#1A1A1A', justifyContent: 'center', alignItems: 'center' },
   checkboxChecked: { borderColor: '#E63946', backgroundColor: '#E63946' },
-  checkmark: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  checkboxCheckedYellow: { borderColor: '#FFD700', backgroundColor: '#FFD700' },
+  checkmark: { color: '#0D0D0D', fontSize: 14, fontWeight: '900' },
   checkboxLabel: { fontSize: 14, color: '#888888', letterSpacing: 1 },
+  unlimitedBadge: { backgroundColor: '#1A1600', borderWidth: 1, borderColor: '#FFD700', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  unlimitedBadgeText: { fontSize: 8, fontWeight: '900', color: '#FFD700', letterSpacing: 1.5 },
   locationButton: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 10, borderWidth: 1, borderColor: '#333333', backgroundColor: '#1A1A1A' },
   locationButtonSet: { borderColor: '#E63946', backgroundColor: '#1A0A0A' },
+  locationButtonDisabled: { borderColor: '#222222', backgroundColor: '#111111', opacity: 0.5 },
   locationTextWrapper: { flex: 1 },
   locationLabel: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
   locationLabelSet: { color: '#E63946' },
+  locationLabelDisabled: { color: '#444444' },
   locationSub: { fontSize: 11, color: '#555555', letterSpacing: 1, marginTop: 2 },
   locationTick: { fontSize: 18, color: '#E63946', fontWeight: '900' },
   footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: Platform.OS === 'android' ? 48 : 24, alignItems: 'center' },
@@ -631,4 +834,130 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   ticketYesText: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 2, textAlign: 'center' },
+
+  // Timer chip
+  timerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#333333',
+    backgroundColor: '#1A1A1A',
+    marginTop: 4,
+  },
+  timerChipActive: {
+    borderColor: '#FFD700',
+    backgroundColor: '#1A1600',
+  },
+  timerChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#555555',
+    letterSpacing: 1.5,
+  },
+  timerChipTextActive: {
+    color: '#FFD700',
+  },
+
+  // Timer modal
+  timerModalBox: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333333',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    gap: 14,
+    width: '100%',
+  },
+  timerModalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 3,
+    textAlign: 'center',
+  },
+  timerModalSub: {
+    fontSize: 12,
+    color: '#555555',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  timerPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 8,
+  },
+  timerPickerCol: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  timerArrow: {
+    padding: 8,
+  },
+  timerValue: {
+    fontSize: 52,
+    fontWeight: '900',
+    color: '#FFD700',
+    letterSpacing: 2,
+    minWidth: 80,
+    textAlign: 'center',
+  },
+  timerUnit: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#555555',
+    letterSpacing: 2,
+  },
+  timerColon: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#333333',
+    marginBottom: 20,
+  },
+  timerWarning: {
+    fontSize: 11,
+    color: '#E63946',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  timerConfirmButton: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    width: '100%',
+  },
+  timerConfirmDisabled: {
+    backgroundColor: '#333333',
+  },
+  timerConfirmText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0D0D0D',
+    letterSpacing: 3,
+  },
+  timerClearButton: {
+    paddingVertical: 10,
+  },
+  timerClearText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#E63946',
+    letterSpacing: 2,
+  },
+  timerCancelButton: {
+    paddingVertical: 8,
+  },
+  timerCancelText: {
+    fontSize: 12,
+    color: '#444444',
+    letterSpacing: 1,
+  },
 });

@@ -38,9 +38,9 @@ yarn-error.*
 *firebase-adminsdk*.json
 doublyellow-ac481-*.json
 
-# Google services config — keep out of public repos
-google-services.json
-GoogleService-Info.plist
+# Google services config — included for EAS build (repo is private)
+# google-services.json
+# GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo

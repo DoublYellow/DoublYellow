@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DoublYellow — Home Screen Concepts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111;
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    color: #fff;
+    padding: 40px 20px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #FFD700;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 2px;
+    margin-bottom: 48px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .concept {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #FFD700;
+  }
+  .desc {
+    font-size: 11px;
+    color: #666;
+    letter-spacing: 0.5px;
+    text-align: center;
+    line-height: 1.6;
+    max-width: 260px;
+  }
+  /* Phone shell */
+  .phone {
+    width: 260px;
+    height: 520px;
+    border-radius: 40px;
+    border: 2px solid #333;
+    overflow: hidden;
+    position: relative;
+    background: #0D0D0D;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    flex-shrink: 0;
+  }
+  /* Notch */
+  .notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 24px;
+    background: #0D0D0D;
+    border-radius: 0 0 14px 14px;
+    z-index: 100;
+    border-bottom: 1px solid #222;
+  }
+
+  /* ═══════════════════════════════════════════
+     OPTION A — FULL BLEED SPLIT (no grey gap)
+  ═══════════════════════════════════════════ */
+  .a-screen {
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #0D0D0D;
+  }
+  .a-top {
+    flex: 1;
+    background: #0D0D0D;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 24px;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .a-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 46px;
+    background: #FFD700;
+  }
+  .a-line-1 { top: 38%; }
+  .a-line-2 { top: calc(38% + 56px); }
+  .a-word {
+    font-size: 36px;
+    font-weight: 900;
+    color: #0D0D0D;
+    letter-spacing: 5px;
+    line-height: 46px;
+    position: relative;
+    z-index: 2;
+  }
+  .a-word-2 { margin-top: 10px; }
+  .a-nav {
+    height: 52px;
+    background: #0D0D0D;
+    border-top: 1px solid #1a1a1a;
+    border-bottom: 1px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 8px;
+  }
+  .a-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .a-nav-icon {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    background: #333;
+  }
+  .a-nav-icon.active { background: #FFD700; border-radius: 50%; }
+  .a-nav-text {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #444;
+  }
+  .a-nav-text.active { color: #FFD700; }
+  .a-bottom {
+    flex: 1;
+    background: #0D0D0D;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .a-triangle {
+    width: 0; height: 0;
+    border-left: 56px solid transparent;
+    border-right: 56px solid transparent;
+    border-bottom: 96px solid #FFD700;
+    position: relative;
+  }
+  .a-exclaim {
+    position: absolute;
+    top: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 48px;
+    font-weight: 900;
+    color: #0D0D0D;
+    line-height: 1;
+    z-index: 2;
+  }
+  .a-warden-text {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #fff;
+    line-height: 34px;
+    text-align: center;
+  }
+
+  /* ═══════════════════════════════════════════
+     OPTION B — DASHBOARD / STATUS CARD
+  ═══════════════════════════════════════════ */
+  .b-screen {
+    width: 100%; height: 100%;
+    background: #0D0D0D;
+    display: flex;
+    flex-direction: column;
+  }
+  .b-header {
+    padding: 32px 20px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .b-logo {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #FFD700;
+  }
+  .b-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #222;
+    border: 1px solid #333;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #888;
+  }
+  .b-status {
+    margin: 4px 20px 16px;
+    background: #1A1A1A;
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #222;
+  }
+  .b-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #444;
+  }
+  .b-dot.on {
+    background: #C1121F;
+    box-shadow: 0 0 6px #C1121F;
+  }
+  .b-status-text {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #555;
+  }
+  .b-status-text.on { color: #C1121F; }
+  .b-cards {
+    flex: 1;
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .b-card {
+    flex: 1;
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 20px;
+    border: 1px solid #222;
+  }
+  .b-card-parked {
+    background: #111;
+  }
+  .b-card-warden {
+    background: #0D0D0D;
+    border-color: #1a1a1a;
+  }
+  .b-card-lines {
+    position: absolute;
+    left: 0; right: 0;
+    top: 50%; transform: translateY(-50%);
+  }
+  .b-card-line {
+    height: 28px;
+    background: #FFD700;
+    margin-bottom: 10px;
+  }
+  .b-card-label {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #0D0D0D;
+    position: relative;
+    z-index: 2;
+    line-height: 28px;
+  }
+  .b-card-sub {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #555;
+    margin-top: 6px;
+    position: relative;
+    z-index: 2;
+  }
+  .b-card-sub.light { color: #FFD700; }
+  .b-warn-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .b-mini-tri {
+    width: 0; height: 0;
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-bottom: 36px solid #FFD700;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .b-mini-tri-ex {
+    position: absolute;
+    top: 8px;
+    left: -8px;
+    font-size: 18px;
+    font-weight: 900;
+    color: #0D0D0D;
+  }
+  .b-card-warden-label {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #FFFFFF;
+    line-height: 26px;
+  }
+  .b-footer {
+    height: 56px;
+    border-top: 1px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 8px;
+  }
+  .b-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .b-tab-icon {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    background: #222;
+  }
+  .b-tab-icon.active { background: transparent; border: 1.5px solid #FFD700; border-radius: 50%; }
+  .b-tab-text { font-size: 7px; font-weight: 700; letter-spacing: 1px; color: #333; }
+  .b-tab-text.active { color: #FFD700; }
+
+  /* ═══════════════════════════════════════════
+     OPTION C — MINIMAL HERO (big buttons)
+  ═══════════════════════════════════════════ */
+  .c-screen {
+    width: 100%; height: 100%;
+    background: #0D0D0D;
+    display: flex;
+    flex-direction: column;
+  }
+  .c-top {
+    padding: 32px 20px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .c-logo {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #FFD700;
+  }
+  .c-avatar {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 1px solid #333;
+  }
+  .c-hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+  }
+  .c-ring {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    border: 2px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+  .c-ring-inner {
+    width: 70px; height: 70px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 1.5px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: 900;
+    color: #555;
+    letter-spacing: 0;
+  }
+  .c-status-line {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #444;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .c-btn {
+    width: 100%;
+    height: 64px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border: 1px solid #222;
+    margin-bottom: 10px;
+  }
+  .c-btn-parked {
+    background: #111;
+    border-color: #FFD700;
+    position: relative;
+    overflow: hidden;
+  }
+  .c-btn-line-accent {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 5px;
+    background: #FFD700;
+    border-radius: 14px 0 0 14px;
+  }
+  .c-btn-warden {
+    background: #111;
+    border-color: #C1121F;
+  }
+  .c-btn-line-red {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 5px;
+    background: #C1121F;
+    border-radius: 14px 0 0 14px;
+  }
+  .c-btn-text {
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #fff;
+  }
+  .c-btn-sub {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #444;
+    text-align: center;
+  }
+  .c-footer {
+    height: 56px;
+    border-top: 1px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+  .c-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .c-tab-dot { width: 16px; height: 16px; border-radius: 4px; background: #1a1a1a; }
+  .c-tab-dot.active { background: #FFD700; border-radius: 50%; width: 8px; height: 8px; }
+  .c-tab-text { font-size: 7px; font-weight: 700; letter-spacing: 1px; color: #333; }
+  .c-tab-text.active { color: #FFD700; }
+
+  /* ═══════════════════════════════════════════
+     OPTION D — BOLD DIAGONAL SPLIT
+  ═══════════════════════════════════════════ */
+  .d-screen {
+    width: 100%; height: 100%;
+    background: #0D0D0D;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .d-top {
+    flex: 1.1;
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 22px 32px;
+    position: relative;
+    z-index: 2;
+    clip-path: polygon(0 0, 100% 0, 100% 80%, 0 100%);
+    overflow: hidden;
+  }
+  .d-top-lines {
+    position: absolute;
+    left: 0; right: 0;
+    top: 44%;
+  }
+  .d-top-line {
+    height: 36px;
+    background: #FFD700;
+    margin-bottom: 9px;
+  }
+  .d-top-word {
+    font-size: 32px;
+    font-weight: 900;
+    color: #0D0D0D;
+    letter-spacing: 6px;
+    line-height: 36px;
+    position: relative;
+    z-index: 2;
+  }
+  .d-top-sub {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #555;
+    margin-top: 12px;
+    position: relative;
+    z-index: 2;
+  }
+  .d-brand {
+    position: absolute;
+    top: 28px;
+    left: 22px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #FFD700;
+    z-index: 10;
+  }
+  .d-profile-btn {
+    position: absolute;
+    top: 24px;
+    right: 18px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    z-index: 10;
+  }
+  .d-bottom {
+    flex: 0.9;
+    background: #0D0D0D;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding-top: 16px;
+    position: relative;
+    z-index: 1;
+  }
+  .d-warn-badge {
+    width: 54px; height: 54px;
+    background: #FFD700;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 900;
+    color: #0D0D0D;
+    transform: rotate(-4deg);
+  }
+  .d-warden-text {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #fff;
+    text-align: center;
+    line-height: 32px;
+  }
+  .d-warden-sub {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #444;
+  }
+  .d-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    height: 52px;
+    background: rgba(13,13,13,0.95);
+    border-top: 1px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 10;
+  }
+  .d-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .d-tab-bar { width: 20px; height: 2px; background: #222; border-radius: 2px; }
+  .d-tab-bar.active { background: #FFD700; }
+  .d-tab-text { font-size: 7px; font-weight: 700; letter-spacing: 1px; color: #333; }
+  .d-tab-text.active { color: #FFD700; }
+
+  /* Current label */
+  .current-badge {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #555;
+    display: inline-block;
+    margin-bottom: 6px;
+  }
+  .new-badge {
+    background: #1a1600;
+    border: 1px solid #FFD700;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #FFD700;
+    display: inline-block;
+    margin-bottom: 6px;
+  }
+
+  /* Current screen for comparison */
+  .curr-screen {
+    width: 100%; height: 100%;
+    background: #888;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 4px;
+  }
+  .curr-top {
+    flex: 1;
+    background: #0D0D0D;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 16px;
+    overflow: hidden;
+    position: relative;
+  }
+  .curr-line {
+    position: absolute; left: 0; right: 0;
+    height: 38px; background: #FFD700;
+  }
+  .curr-line-1 { top: 36%; }
+  .curr-line-2 { top: calc(36% + 48px); }
+  .curr-word {
+    font-size: 28px;
+    font-weight: 900;
+    color: #0D0D0D;
+    letter-spacing: 4px;
+    line-height: 38px;
+    position: relative;
+    z-index: 2;
+    text-align: center;
+  }
+  .curr-bar {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+  .curr-bar-text {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #0D0D0D;
+  }
+  .curr-bottom {
+    flex: 1;
+    background: #0D0D0D;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .curr-tri {
+    width: 0; height: 0;
+    border-left: 44px solid transparent;
+    border-right: 44px solid transparent;
+    border-bottom: 76px solid #FFD700;
+    position: relative;
+  }
+  .curr-tri-ex {
+    position: absolute;
+    top: 16px; left: -14px;
+    font-size: 36px; font-weight: 900; color: #0D0D0D;
+  }
+  .curr-warden {
+    font-size: 22px; font-weight: 900;
+    letter-spacing: 3px; color: #fff;
+    line-height: 28px; text-align: center;
+  }
+  .notes {
+    font-size: 10px;
+    color: #444;
+    letter-spacing: 1px;
+    line-height: 1.7;
+    text-align: left;
+    max-width: 260px;
+  }
+  .notes li { margin-left: 12px; }
+</style>
+</head>
+<body>
+
+<h1>DOUBLYELLOW — HOME SCREEN CONCEPTS</h1>
+<p class="subtitle">VISUAL REFERENCE ONLY — NOT IMPLEMENTED</p>
+
+<div class="grid">
+
+  <!-- CURRENT -->
+  <div class="concept">
+    <div class="current-badge">CURRENT</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="curr-screen">
+        <div class="curr-top">
+          <div class="curr-line curr-line-1"></div>
+          <div class="curr-line curr-line-2"></div>
+          <div class="curr-word" style="margin-bottom:8px">I'VE</div>
+          <div style="height:8px;background:#0D0D0D;position:relative;z-index:2"></div>
+          <div class="curr-word">PARKED</div>
+        </div>
+        <div class="curr-bar">
+          <span class="curr-bar-text">PROFILE</span>
+          <span class="curr-bar-text">SETTINGS</span>
+        </div>
+        <div class="curr-bottom">
+          <div class="curr-tri"><span class="curr-tri-ex">!</span></div>
+          <div class="curr-warden">WARDEN<br>SPOTTED</div>
+        </div>
+      </div>
+    </div>
+    <p class="desc">What we have now — grey outer, no branding, text-only nav bar in middle.</p>
+  </div>
+
+  <!-- OPTION A: Full Bleed + Bottom Nav -->
+  <div class="concept">
+    <div class="new-badge">OPTION A</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="a-screen">
+        <div class="a-top">
+          <div class="a-line a-line-1"></div>
+          <div class="a-word">I'VE</div>
+          <div style="height:10px"></div>
+          <div class="a-word a-word-2">PARKED</div>
+        </div>
+        <div class="a-nav">
+          <div class="a-nav-item">
+            <div class="a-nav-icon"></div>
+            <span class="a-nav-text">PROFILE</span>
+          </div>
+          <div class="a-nav-item">
+            <div class="a-nav-icon active"></div>
+            <span class="a-nav-text active">HOME</span>
+          </div>
+          <div class="a-nav-item">
+            <div class="a-nav-icon"></div>
+            <span class="a-nav-text">SETTINGS</span>
+          </div>
+        </div>
+        <div class="a-bottom">
+          <div style="position:relative;width:112px;height:96px">
+            <div class="a-triangle"></div>
+            <span class="a-exclaim">!</span>
+          </div>
+          <div class="a-warden-text">WARDEN<br>SPOTTED</div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>Grey background gone — full dark edge-to-edge</li>
+      <li>Navigation moves into a proper icon bar between the two panels</li>
+      <li>HOME dot lights up yellow to show active tab</li>
+      <li>Minimal change to the existing visual language</li>
+    </ul>
+  </div>
+
+  <!-- OPTION B: Dashboard with Status Card -->
+  <div class="concept">
+    <div class="new-badge">OPTION B</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="b-screen">
+        <div class="b-header">
+          <span class="b-logo">DOUBLYELLOW</span>
+          <div class="b-avatar">👤</div>
+        </div>
+        <div class="b-status">
+          <div class="b-dot"></div>
+          <span class="b-status-text">PROTECTION INACTIVE</span>
+        </div>
+        <div class="b-cards">
+          <div class="b-card b-card-parked">
+            <div class="b-card-lines">
+              <div class="b-card-line"></div>
+              <div class="b-card-line"></div>
+            </div>
+            <div class="b-card-label" style="color:#0D0D0D;position:relative;z-index:2">I'VE PARKED</div>
+            <div class="b-card-sub light" style="color:#1a1a1a;position:relative;z-index:2">Activate community watch →</div>
+          </div>
+          <div class="b-card b-card-warden">
+            <div class="b-warn-row">
+              <div class="b-mini-tri"><span class="b-mini-tri-ex">!</span></div>
+              <div>
+                <div class="b-card-warden-label">WARDEN<br>SPOTTED</div>
+              </div>
+            </div>
+            <div class="b-card-sub" style="margin-top:8px">Report a warden near you →</div>
+          </div>
+        </div>
+        <div class="b-footer">
+          <div class="b-tab">
+            <div class="b-tab-icon"></div>
+            <span class="b-tab-text">PROFILE</span>
+          </div>
+          <div class="b-tab">
+            <div class="b-tab-icon active"></div>
+            <span class="b-tab-text active">HOME</span>
+          </div>
+          <div class="b-tab">
+            <div class="b-tab-icon"></div>
+            <span class="b-tab-text">SETTINGS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>App name sits prominently at top with avatar</li>
+      <li>Live status pill — goes red when parking is active</li>
+      <li>Two cards with more breathing room and border styling</li>
+      <li>Bottom tab bar — conventional, very readable</li>
+      <li>Most "app-like" of the options</li>
+    </ul>
+  </div>
+
+  <!-- OPTION C: Minimal Hero + Large Pill Buttons -->
+  <div class="concept">
+    <div class="new-badge">OPTION C</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="c-screen">
+        <div class="c-top">
+          <span class="c-logo">DOUBLYELLOW</span>
+          <div class="c-avatar"></div>
+        </div>
+        <div class="c-hero">
+          <div class="c-ring">
+            <div class="c-ring-inner">DY</div>
+          </div>
+          <div class="c-status-line">NO ACTIVE SESSION</div>
+          <div class="c-btn c-btn-parked" style="position:relative">
+            <div class="c-btn-line-accent"></div>
+            <div>
+              <div class="c-btn-text" style="margin-left:8px">I'VE PARKED</div>
+              <div class="c-btn-sub" style="margin-left:8px">Activate community alerts</div>
+            </div>
+          </div>
+          <div class="c-btn c-btn-warden" style="position:relative">
+            <div class="c-btn-line-red"></div>
+            <div>
+              <div class="c-btn-text" style="margin-left:8px;color:#C1121F">WARDEN SPOTTED</div>
+              <div class="c-btn-sub" style="margin-left:8px">Report a warden near you</div>
+            </div>
+          </div>
+        </div>
+        <div class="c-footer">
+          <div class="c-tab">
+            <div class="c-tab-dot"></div>
+            <span class="c-tab-text">PROFILE</span>
+          </div>
+          <div class="c-tab">
+            <div class="c-tab-dot active"></div>
+            <span class="c-tab-text active">HOME</span>
+          </div>
+          <div class="c-tab">
+            <div class="c-tab-dot"></div>
+            <span class="c-tab-text">SETTINGS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>Centred status ring — pulses red when parking active</li>
+      <li>Two large, clearly-labelled action buttons with coloured left-border accents</li>
+      <li>Sub-labels explain each action at a glance</li>
+      <li>Cleanest, most minimal of the options</li>
+      <li>Less brand personality, more utility-first</li>
+    </ul>
+  </div>
+
+  <!-- OPTION D: Diagonal Split with Brand Strip -->
+  <div class="concept">
+    <div class="new-badge">OPTION D</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="d-screen">
+        <span class="d-brand">DOUBLYELLOW</span>
+        <div class="d-profile-btn"></div>
+        <div class="d-top">
+          <div class="d-top-lines">
+            <div class="d-top-line"></div>
+            <div class="d-top-line"></div>
+          </div>
+          <div class="d-top-word" style="color:#0D0D0D;position:relative;z-index:2;margin-bottom:3px">I'VE PARKED</div>
+          <div class="d-top-sub">Tap to activate alerts</div>
+        </div>
+        <div class="d-bottom">
+          <div class="d-warn-badge">!</div>
+          <div class="d-warden-text">WARDEN<br>SPOTTED</div>
+          <div class="d-warden-sub">Tap to report →</div>
+        </div>
+        <div class="d-footer">
+          <div class="d-tab">
+            <div class="d-tab-bar"></div>
+            <span class="d-tab-text">PROFILE</span>
+          </div>
+          <div class="d-tab">
+            <div class="d-tab-bar active"></div>
+            <span class="d-tab-text active">HOME</span>
+          </div>
+          <div class="d-tab">
+            <div class="d-tab-bar"></div>
+            <span class="d-tab-text">SETTINGS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>Diagonal clip-path divides the two zones for visual drama</li>
+      <li>Brand name overlaid in top-left corner</li>
+      <li>Warning badge replaces the triangle — bold yellow square, slightly rotated</li>
+      <li>Sub-labels hint at what each tap does</li>
+      <li>Most distinctive / editorial feel</li>
+    </ul>
+  </div>
+
+</div>
+
+<p style="text-align:center;font-size:10px;color:#333;letter-spacing:2px;margin-top:60px;padding-bottom:40px">ALL CONCEPTS KEEP THE CORE YELLOW-LINE ROAD-MARKING LANGUAGE AND DARK PALETTE</p>
+
+</body>
+</html>

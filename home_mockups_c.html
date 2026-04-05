@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DoublYellow — Option C Variations</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111;
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    color: #fff;
+    padding: 40px 20px;
+  }
+  h1 { text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 4px; color: #FFD700; margin-bottom: 6px; }
+  .subtitle { text-align: center; font-size: 11px; color: #555; letter-spacing: 2px; margin-bottom: 48px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 48px; max-width: 1400px; margin: 0 auto; }
+  .concept { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 3px; color: #FFD700; }
+  .desc { font-size: 11px; color: #555; letter-spacing: 0.5px; text-align: center; line-height: 1.7; max-width: 240px; }
+  .phone { width: 260px; height: 520px; border-radius: 40px; border: 2px solid #2a2a2a; overflow: hidden; position: relative; background: #0D0D0D; box-shadow: 0 24px 80px rgba(0,0,0,0.7); flex-shrink: 0; }
+  .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 80px; height: 24px; background: #0D0D0D; border-radius: 0 0 14px 14px; z-index: 100; border-bottom: 1px solid #1a1a1a; }
+  .new-badge { background: #1a1600; border: 1px solid #FFD700; border-radius: 20px; padding: 4px 10px; font-size: 8px; font-weight: 700; letter-spacing: 2px; color: #FFD700; display: inline-block; margin-bottom: 6px; }
+  .ref-badge { background: #1a1a1a; border: 1px solid #444; border-radius: 20px; padding: 4px 10px; font-size: 8px; font-weight: 700; letter-spacing: 2px; color: #666; display: inline-block; margin-bottom: 6px; }
+
+  /* ── REFERENCE: Original C ─────────────────── */
+  .c-screen { width:100%; height:100%; background:#0D0D0D; display:flex; flex-direction:column; }
+  .c-topbar { padding: 32px 20px 0; display:flex; justify-content:space-between; align-items:center; }
+  .c-logo { font-size:11px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .c-avatar { width:26px; height:26px; border-radius:50%; background:#1a1a1a; border:1px solid #333; }
+  .c-hero { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:8px; padding:20px; }
+  .c-ring { width:96px; height:96px; border-radius:50%; border:1.5px solid #222; display:flex; align-items:center; justify-content:center; margin-bottom:4px; }
+  .c-ring-inner { width:68px; height:68px; border-radius:50%; background:#1a1a1a; border:1.5px solid #333; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:900; color:#444; }
+  .c-status { font-size:9px; font-weight:700; letter-spacing:3px; color:#444; margin-bottom:12px; }
+  .c-btn { width:100%; height:60px; border-radius:14px; display:flex; align-items:center; padding:0 18px; gap:12px; border:1px solid #222; margin-bottom:10px; position:relative; overflow:hidden; }
+  .c-btn-yellow { background:#111; border-color:#FFD700; }
+  .c-btn-red { background:#111; border-color:#C1121F; }
+  .c-accent { position:absolute; left:0; top:0; bottom:0; width:4px; border-radius:14px 0 0 14px; }
+  .c-accent-y { background:#FFD700; }
+  .c-accent-r { background:#C1121F; }
+  .c-btn-label { font-size:14px; font-weight:900; letter-spacing:3px; color:#fff; }
+  .c-btn-sub { font-size:7px; font-weight:700; letter-spacing:1.5px; color:#444; }
+  .c-footer { height:52px; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:space-around; }
+  .c-tab { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .c-tab-dot { width:6px; height:6px; border-radius:50%; background:#222; }
+  .c-tab-dot.on { background:#FFD700; }
+  .c-tab-text { font-size:7px; font-weight:700; letter-spacing:1px; color:#333; }
+  .c-tab-text.on { color:#FFD700; }
+
+  /* ── C1: BIG ICON CARDS ───────────────────── */
+  .c1-screen { width:100%; height:100%; background:#0D0D0D; display:flex; flex-direction:column; }
+  .c1-top { padding:32px 20px 0; display:flex; justify-content:space-between; align-items:center; }
+  .c1-logo { font-size:11px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .c1-avatar { width:26px; height:26px; border-radius:50%; background:#1a1a1a; border:1px solid #333; }
+  .c1-status { padding:12px 20px 0; display:flex; align-items:center; gap:8px; }
+  .c1-dot { width:7px; height:7px; border-radius:50%; background:#2a2a2a; }
+  .c1-status-text { font-size:9px; font-weight:700; letter-spacing:2px; color:#333; }
+  .c1-cards { flex:1; display:flex; flex-direction:column; gap:12px; padding:16px 16px 0; }
+  .c1-card { flex:1; border-radius:20px; border:1px solid #222; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; position:relative; overflow:hidden; }
+  .c1-card-yellow { border-color:#FFD700; }
+  .c1-card-red { border-color:#C1121F; }
+  .c1-card-corner { position:absolute; top:0; right:0; width:60px; height:60px; border-radius:0 20px 0 60px; }
+  .c1-card-corner-y { background:rgba(255,215,0,0.08); }
+  .c1-card-corner-r { background:rgba(193,18,31,0.08); }
+  .c1-icon-circle { width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .c1-icon-circle-y { background:rgba(255,215,0,0.12); border:1px solid rgba(255,215,0,0.3); }
+  .c1-icon-circle-r { background:rgba(193,18,31,0.12); border:1px solid rgba(193,18,31,0.3); }
+  .c1-icon { font-size:24px; }
+  .c1-card-label { font-size:16px; font-weight:900; letter-spacing:3px; color:#fff; }
+  .c1-card-sub { font-size:8px; font-weight:700; letter-spacing:1.5px; color:#444; }
+  .c1-footer { height:52px; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:space-around; margin-top:12px; }
+  .c1-tab { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .c1-tab-dot { width:6px; height:6px; border-radius:50%; background:#222; }
+  .c1-tab-dot.on { background:#FFD700; }
+  .c1-tab-text { font-size:7px; font-weight:700; letter-spacing:1px; color:#333; }
+  .c1-tab-text.on { color:#FFD700; }
+
+  /* ── C2: GLOWING STATUS RING (large) ─────── */
+  .c2-screen { width:100%; height:100%; background:#0D0D0D; display:flex; flex-direction:column; }
+  .c2-top { padding:32px 20px 0; display:flex; justify-content:space-between; align-items:center; }
+  .c2-logo { font-size:11px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .c2-avatar { width:26px; height:26px; border-radius:50%; background:#1a1a1a; border:1px solid #333; }
+  .c2-hero { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .c2-ring-outer { width:150px; height:150px; border-radius:50%; border:1px solid #1a1a1a; display:flex; align-items:center; justify-content:center; }
+  .c2-ring-mid { width:124px; height:124px; border-radius:50%; border:1.5px solid #2a2a2a; display:flex; align-items:center; justify-content:center; }
+  .c2-ring-inner { width:98px; height:98px; border-radius:50%; background:#111; border:1.5px solid #333; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+  .c2-ring-label { font-size:8px; font-weight:700; letter-spacing:2px; color:#555; }
+  .c2-ring-value { font-size:11px; font-weight:900; letter-spacing:2px; color:#444; }
+  .c2-status-text { font-size:9px; font-weight:700; letter-spacing:3px; color:#333; margin-top:6px; margin-bottom:4px; }
+  .c2-buttons { padding:0 16px; display:flex; flex-direction:column; gap:10px; width:100%; }
+  .c2-btn { height:54px; border-radius:14px; display:flex; align-items:center; justify-content:center; gap:10px; border:1px solid #222; }
+  .c2-btn-y { border-color:rgba(255,215,0,0.4); background:rgba(255,215,0,0.04); }
+  .c2-btn-r { border-color:rgba(193,18,31,0.4); background:rgba(193,18,31,0.04); }
+  .c2-btn-text-y { font-size:13px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .c2-btn-text-r { font-size:13px; font-weight:900; letter-spacing:3px; color:#C1121F; }
+  .c2-footer { height:52px; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:space-around; margin-top:12px; }
+  .c2-tab { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .c2-tab-dot { width:6px; height:6px; border-radius:50%; background:#222; }
+  .c2-tab-dot.on { background:#FFD700; }
+  .c2-tab-text { font-size:7px; font-weight:700; letter-spacing:1px; color:#333; }
+  .c2-tab-text.on { color:#FFD700; }
+
+  /* ── C3: ROAD DNA BUTTONS ─────────────────── */
+  .c3-screen { width:100%; height:100%; background:#0D0D0D; display:flex; flex-direction:column; }
+  .c3-top { padding:32px 20px 0; display:flex; justify-content:space-between; align-items:center; }
+  .c3-logo { font-size:11px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .c3-avatar { width:26px; height:26px; border-radius:50%; background:#1a1a1a; border:1px solid #333; }
+  .c3-status-row { padding:14px 20px 0; display:flex; align-items:center; gap:8px; }
+  .c3-dot { width:7px; height:7px; border-radius:50%; background:#2a2a2a; }
+  .c3-status-text { font-size:9px; font-weight:700; letter-spacing:2px; color:#333; }
+  .c3-main { flex:1; display:flex; flex-direction:column; justify-content:center; padding:0 16px; gap:14px; }
+  .c3-btn { height:110px; border-radius:18px; border:1px solid #222; overflow:hidden; position:relative; display:flex; flex-direction:column; justify-content:flex-end; padding:16px; }
+  .c3-btn-parked { background:#0f0f0f; }
+  .c3-btn-warden { background:#0f0f0f; }
+  .c3-line { position:absolute; left:0; right:0; height:24px; }
+  .c3-line-1 { top:24px; background:#FFD700; }
+  .c3-line-2 { top:54px; background:#FFD700; }
+  .c3-line-r { top:32px; background:rgba(193,18,31,0.7); height:20px; }
+  .c3-btn-title { font-size:20px; font-weight:900; letter-spacing:4px; color:#0D0D0D; position:relative; z-index:2; line-height:24px; }
+  .c3-btn-title-white { font-size:20px; font-weight:900; letter-spacing:4px; color:#FFFFFF; position:relative; z-index:2; }
+  .c3-btn-sub { font-size:8px; font-weight:700; letter-spacing:2px; color:#555; margin-top:4px; position:relative; z-index:2; }
+  .c3-footer { height:52px; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:space-around; }
+  .c3-tab { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .c3-tab-dot { width:6px; height:6px; border-radius:50%; background:#222; }
+  .c3-tab-dot.on { background:#FFD700; }
+  .c3-tab-text { font-size:7px; font-weight:700; letter-spacing:1px; color:#333; }
+  .c3-tab-text.on { color:#FFD700; }
+
+  /* ── C4: FULL WIDTH SPLIT BUTTONS ─────────── */
+  .c4-screen { width:100%; height:100%; background:#0D0D0D; display:flex; flex-direction:column; }
+  .c4-top { padding:32px 20px 12px; display:flex; justify-content:space-between; align-items:center; }
+  .c4-logo { font-size:11px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .c4-avatar { width:26px; height:26px; border-radius:50%; background:#1a1a1a; border:1px solid #333; }
+  .c4-spacer { flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; }
+  .c4-inactive { font-size:10px; font-weight:700; letter-spacing:4px; color:#2a2a2a; }
+  .c4-divider { width:30px; height:1px; background:#1a1a1a; }
+  .c4-panel { height:180px; position:relative; overflow:hidden; }
+  .c4-panel-parked { background:#111; border-top:1px solid #222; }
+  .c4-panel-warden { background:#0f0f0f; border-top:1px solid #222; }
+  .c4-panel-line { position:absolute; left:0; right:0; height:28px; }
+  .c4-panel-line-1 { top:30px; background:#FFD700; }
+  .c4-panel-line-2 { top:64px; background:#FFD700; }
+  .c4-panel-content { position:absolute; bottom:0; left:0; right:0; padding:16px 24px; }
+  .c4-panel-label { font-size:28px; font-weight:900; letter-spacing:5px; color:#0D0D0D; line-height:28px; }
+  .c4-panel-sub { font-size:8px; font-weight:700; letter-spacing:2px; color:#888; margin-top:4px; }
+  .c4-warn-badge { position:absolute; top:16px; right:20px; width:44px; height:44px; background:#C1121F; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:900; color:#fff; }
+  .c4-warden-content { position:absolute; bottom:0; left:0; right:0; padding:16px 24px; }
+  .c4-warden-label { font-size:24px; font-weight:900; letter-spacing:4px; color:#fff; }
+  .c4-warden-sub { font-size:8px; font-weight:700; letter-spacing:2px; color:#555; margin-top:4px; }
+  .c4-footer { height:52px; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:space-around; }
+  .c4-tab { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .c4-tab-dot { width:6px; height:6px; border-radius:50%; background:#222; }
+  .c4-tab-dot.on { background:#FFD700; }
+  .c4-tab-text { font-size:7px; font-weight:700; letter-spacing:1px; color:#333; }
+  .c4-tab-text.on { color:#FFD700; }
+
+  /* ── C5: STACKED STATUS CARD ──────────────── */
+  .c5-screen { width:100%; height:100%; background:#0D0D0D; display:flex; flex-direction:column; }
+  .c5-top { padding:32px 20px 16px; display:flex; justify-content:space-between; align-items:center; }
+  .c5-logo { font-size:11px; font-weight:900; letter-spacing:3px; color:#FFD700; }
+  .c5-avatar { width:26px; height:26px; border-radius:50%; background:#1a1a1a; border:1px solid #333; }
+  .c5-status-card { margin:0 16px; border-radius:16px; background:#111; border:1px solid #1e1e1e; padding:20px; display:flex; align-items:center; gap:14px; }
+  .c5-status-ring { width:44px; height:44px; border-radius:50%; border:1.5px solid #2a2a2a; display:flex; align-items:center; justify-content:center; }
+  .c5-status-dot { width:14px; height:14px; border-radius:50%; background:#1e1e1e; }
+  .c5-status-info { flex:1; }
+  .c5-status-label { font-size:11px; font-weight:900; letter-spacing:2px; color:#333; }
+  .c5-status-sub { font-size:9px; font-weight:700; letter-spacing:1px; color:#2a2a2a; margin-top:2px; }
+  .c5-actions { flex:1; padding:16px; display:flex; flex-direction:column; gap:12px; justify-content:center; }
+  .c5-btn { height:72px; border-radius:16px; display:flex; align-items:center; padding:0 20px; gap:14px; border:1px solid #1e1e1e; background:#111; position:relative; overflow:hidden; }
+  .c5-btn-left { position:absolute; left:0; top:0; bottom:0; width:56px; display:flex; align-items:center; justify-content:center; }
+  .c5-btn-left-y { background:rgba(255,215,0,0.08); border-right:1px solid rgba(255,215,0,0.15); }
+  .c5-btn-left-r { background:rgba(193,18,31,0.08); border-right:1px solid rgba(193,18,31,0.15); }
+  .c5-btn-icon-y { font-size:20px; }
+  .c5-btn-icon-r { font-size:20px; }
+  .c5-btn-content { padding-left:56px; }
+  .c5-btn-title-y { font-size:14px; font-weight:900; letter-spacing:3px; color:#FFFFFF; }
+  .c5-btn-title-r { font-size:14px; font-weight:900; letter-spacing:3px; color:#FFFFFF; }
+  .c5-btn-sub { font-size:8px; font-weight:700; letter-spacing:1.5px; color:#444; margin-top:2px; }
+  .c5-footer { height:52px; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:space-around; }
+  .c5-tab { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .c5-tab-dot { width:6px; height:6px; border-radius:50%; background:#222; }
+  .c5-tab-dot.on { background:#FFD700; }
+  .c5-tab-text { font-size:7px; font-weight:700; letter-spacing:1px; color:#333; }
+  .c5-tab-text.on { color:#FFD700; }
+</style>
+</head>
+<body>
+
+<h1>OPTION C — VARIATIONS</h1>
+<p class="subtitle">ALL BASED ON THE MINIMAL / BUTTON-LED AESTHETIC</p>
+
+<div class="grid">
+
+  <!-- ORIGINAL C (reference) -->
+  <div class="concept">
+    <div class="ref-badge">ORIGINAL C (REF)</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="c-screen">
+        <div class="c-topbar">
+          <span class="c-logo">DOUBLYELLOW</span>
+          <div class="c-avatar"></div>
+        </div>
+        <div class="c-hero">
+          <div class="c-ring"><div class="c-ring-inner">DY</div></div>
+          <div class="c-status">NO ACTIVE SESSION</div>
+          <div class="c-btn c-btn-yellow">
+            <div class="c-accent c-accent-y"></div>
+            <div style="padding-left:8px">
+              <div class="c-btn-label">I'VE PARKED</div>
+              <div class="c-btn-sub">ACTIVATE COMMUNITY ALERTS</div>
+            </div>
+          </div>
+          <div class="c-btn c-btn-red">
+            <div class="c-accent c-accent-r"></div>
+            <div style="padding-left:8px">
+              <div class="c-btn-label" style="color:#C1121F">WARDEN SPOTTED</div>
+              <div class="c-btn-sub">REPORT A WARDEN NEAR YOU</div>
+            </div>
+          </div>
+        </div>
+        <div class="c-footer">
+          <div class="c-tab"><div class="c-tab-dot"></div><span class="c-tab-text">PROFILE</span></div>
+          <div class="c-tab"><div class="c-tab-dot on"></div><span class="c-tab-text on">HOME</span></div>
+          <div class="c-tab"><div class="c-tab-dot"></div><span class="c-tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="desc">Original C for reference.</p>
+  </div>
+
+  <!-- C1: BIG ICON CARDS -->
+  <div class="concept">
+    <div class="new-badge">C1 — ICON CARDS</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="c1-screen">
+        <div class="c1-top">
+          <span class="c1-logo">DOUBLYELLOW</span>
+          <div class="c1-avatar"></div>
+        </div>
+        <div class="c1-status">
+          <div class="c1-dot"></div>
+          <span class="c1-status-text">INACTIVE</span>
+        </div>
+        <div class="c1-cards">
+          <div class="c1-card c1-card-yellow">
+            <div class="c1-card-corner c1-card-corner-y"></div>
+            <div class="c1-icon-circle c1-icon-circle-y">
+              <span style="font-size:22px">📍</span>
+            </div>
+            <div class="c1-card-label">I'VE PARKED</div>
+            <div class="c1-card-sub">ACTIVATE COMMUNITY WATCH</div>
+          </div>
+          <div class="c1-card c1-card-red">
+            <div class="c1-card-corner c1-card-corner-r"></div>
+            <div class="c1-icon-circle c1-icon-circle-r">
+              <span style="font-size:22px">⚠️</span>
+            </div>
+            <div class="c1-card-label" style="color:#C1121F">WARDEN SPOTTED</div>
+            <div class="c1-card-sub">REPORT A WARDEN</div>
+          </div>
+        </div>
+        <div class="c1-footer">
+          <div class="c1-tab"><div class="c1-tab-dot"></div><span class="c1-tab-text">PROFILE</span></div>
+          <div class="c1-tab"><div class="c1-tab-dot on"></div><span class="c1-tab-text on">HOME</span></div>
+          <div class="c1-tab"><div class="c1-tab-dot"></div><span class="c1-tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+    <ul class="desc" style="text-align:left;list-style:none">
+      <li>→ Two equal square cards, lots of breathing room</li>
+      <li>→ Large icon in tinted circle above label</li>
+      <li>→ Subtle corner glow on each card</li>
+      <li>→ Status dot in header stays minimal</li>
+    </ul>
+  </div>
+
+  <!-- C2: GLOWING STATUS RING -->
+  <div class="concept">
+    <div class="new-badge">C2 — LARGE STATUS RING</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="c2-screen">
+        <div class="c2-top">
+          <span class="c2-logo">DOUBLYELLOW</span>
+          <div class="c2-avatar"></div>
+        </div>
+        <div class="c2-hero">
+          <div class="c2-ring-outer">
+            <div class="c2-ring-mid">
+              <div class="c2-ring-inner">
+                <span class="c2-ring-label">STATUS</span>
+                <span class="c2-ring-value">OFF</span>
+              </div>
+            </div>
+          </div>
+          <div class="c2-status-text">TAP BELOW TO ACTIVATE</div>
+        </div>
+        <div class="c2-buttons">
+          <div class="c2-btn c2-btn-y">
+            <span style="font-size:14px">📍</span>
+            <span class="c2-btn-text-y">I'VE PARKED</span>
+          </div>
+          <div class="c2-btn c2-btn-r">
+            <span style="font-size:14px">⚠️</span>
+            <span class="c2-btn-text-r">WARDEN SPOTTED</span>
+          </div>
+        </div>
+        <div class="c2-footer">
+          <div class="c2-tab"><div class="c2-tab-dot"></div><span class="c2-tab-text">PROFILE</span></div>
+          <div class="c2-tab"><div class="c2-tab-dot on"></div><span class="c2-tab-text on">HOME</span></div>
+          <div class="c2-tab"><div class="c2-tab-dot"></div><span class="c2-tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+    <ul class="desc" style="text-align:left;list-style:none">
+      <li>→ Concentric ring system dominates centre</li>
+      <li>→ Ring pulses red / glows when parked active</li>
+      <li>→ Buttons are leaner, more compact below</li>
+      <li>→ Status ring = at-a-glance protection state</li>
+    </ul>
+  </div>
+
+  <!-- C3: ROAD DNA BUTTONS -->
+  <div class="concept">
+    <div class="new-badge">C3 — ROAD DNA</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="c3-screen">
+        <div class="c3-top">
+          <span class="c3-logo">DOUBLYELLOW</span>
+          <div class="c3-avatar"></div>
+        </div>
+        <div class="c3-status-row">
+          <div class="c3-dot"></div>
+          <span class="c3-status-text">NO ACTIVE SESSION</span>
+        </div>
+        <div class="c3-main">
+          <!-- Parked button with yellow lines -->
+          <div class="c3-btn c3-btn-parked" style="height:120px">
+            <div class="c3-line c3-line-1"></div>
+            <div class="c3-line c3-line-2"></div>
+            <div class="c3-btn-title">I'VE PARKED</div>
+            <div class="c3-btn-sub">ACTIVATE COMMUNITY ALERTS</div>
+          </div>
+          <!-- Warden button with red accent line -->
+          <div class="c3-btn c3-btn-warden" style="height:120px; border-color:#2a1010">
+            <div class="c3-line c3-line-r"></div>
+            <div style="position:relative;z-index:2">
+              <div class="c3-btn-title-white">WARDEN SPOTTED</div>
+              <div class="c3-btn-sub">REPORT A WARDEN NEAR YOU</div>
+            </div>
+          </div>
+        </div>
+        <div class="c3-footer">
+          <div class="c3-tab"><div class="c3-tab-dot"></div><span class="c3-tab-text">PROFILE</span></div>
+          <div class="c3-tab"><div class="c3-tab-dot on"></div><span class="c3-tab-text on">HOME</span></div>
+          <div class="c3-tab"><div class="c3-tab-dot"></div><span class="c3-tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+    <ul class="desc" style="text-align:left;list-style:none">
+      <li>→ Yellow road lines preserved inside buttons</li>
+      <li>→ Warden button has a red stripe instead</li>
+      <li>→ Keeps the brand's road-marking DNA</li>
+      <li>→ Taller buttons, no status ring</li>
+    </ul>
+  </div>
+
+  <!-- C4: FULL PANEL SPLIT -->
+  <div class="concept">
+    <div class="new-badge">C4 — FULL PANEL SPLIT</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="c4-screen">
+        <div class="c4-top">
+          <span class="c4-logo">DOUBLYELLOW</span>
+          <div class="c4-avatar"></div>
+        </div>
+        <div class="c4-spacer">
+          <span class="c4-inactive">● INACTIVE</span>
+        </div>
+        <!-- Parked panel -->
+        <div class="c4-panel c4-panel-parked">
+          <div class="c4-panel-line c4-panel-line-1"></div>
+          <div class="c4-panel-line c4-panel-line-2"></div>
+          <div class="c4-panel-content">
+            <div class="c4-panel-label">I'VE PARKED</div>
+            <div class="c4-panel-sub">TAP TO ACTIVATE COMMUNITY WATCH →</div>
+          </div>
+        </div>
+        <!-- Warden panel -->
+        <div class="c4-panel c4-panel-warden" style="border-top:1px solid #1a0a0a">
+          <div class="c4-warn-badge">!</div>
+          <div class="c4-warden-content">
+            <div class="c4-warden-label">WARDEN SPOTTED</div>
+            <div class="c4-warden-sub">TAP TO REPORT A WARDEN →</div>
+          </div>
+        </div>
+        <div class="c4-footer">
+          <div class="c4-tab"><div class="c4-tab-dot"></div><span class="c4-tab-text">PROFILE</span></div>
+          <div class="c4-tab"><div class="c4-tab-dot on"></div><span class="c4-tab-text on">HOME</span></div>
+          <div class="c4-tab"><div class="c4-tab-dot"></div><span class="c4-tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+    <ul class="desc" style="text-align:left;list-style:none">
+      <li>→ Full-width edge-to-edge action panels</li>
+      <li>→ Road lines inside parked panel, red badge on warden</li>
+      <li>→ Status in the gap between logo and panels</li>
+      <li>→ Bolder / more dramatic than pill buttons</li>
+    </ul>
+  </div>
+
+  <!-- C5: ICON COLUMN + STATUS CARD -->
+  <div class="concept">
+    <div class="new-badge">C5 — STATUS CARD</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="c5-screen">
+        <div class="c5-top">
+          <span class="c5-logo">DOUBLYELLOW</span>
+          <div class="c5-avatar"></div>
+        </div>
+        <div class="c5-status-card">
+          <div class="c5-status-ring">
+            <div class="c5-status-dot"></div>
+          </div>
+          <div class="c5-status-info">
+            <div class="c5-status-label">PROTECTION OFF</div>
+            <div class="c5-status-sub">No active session</div>
+          </div>
+        </div>
+        <div class="c5-actions">
+          <div class="c5-btn">
+            <div class="c5-btn-left c5-btn-left-y">
+              <span style="font-size:18px;color:#FFD700">P</span>
+            </div>
+            <div class="c5-btn-content">
+              <div class="c5-btn-title-y">I'VE PARKED</div>
+              <div class="c5-btn-sub">Activate community alerts</div>
+            </div>
+          </div>
+          <div class="c5-btn">
+            <div class="c5-btn-left c5-btn-left-r">
+              <span style="font-size:18px;color:#C1121F">!</span>
+            </div>
+            <div class="c5-btn-content">
+              <div class="c5-btn-title-r">WARDEN SPOTTED</div>
+              <div class="c5-btn-sub">Report a warden near you</div>
+            </div>
+          </div>
+        </div>
+        <div class="c5-footer">
+          <div class="c5-tab"><div class="c5-tab-dot"></div><span class="c5-tab-text">PROFILE</span></div>
+          <div class="c5-tab"><div class="c5-tab-dot on"></div><span class="c5-tab-text on">HOME</span></div>
+          <div class="c5-tab"><div class="c5-tab-dot"></div><span class="c5-tab-text">SETTINGS</span></div>
+        </div>
+      </div>
+    </div>
+    <ul class="desc" style="text-align:left;list-style:none">
+      <li>→ Status card at top — turns red/glows when active</li>
+      <li>→ Taller buttons with tinted left-panel icon zone</li>
+      <li>→ Cleaner than original C, more structured</li>
+      <li>→ Most "productivity app" feeling of the set</li>
+    </ul>
+  </div>
+
+</div>
+
+<p style="text-align:center;font-size:10px;color:#222;letter-spacing:2px;margin-top:60px;padding-bottom:40px">ALL INACTIVE STATE SHOWN — ACTIVE STATE TURNS RELEVANT ELEMENTS RED / YELLOW</p>
+
+</body>
+</html>

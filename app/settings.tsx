@@ -12,6 +12,8 @@ export default function SettingsScreen() {
   const [siren, setSiren] = useState(true);
   const [defaultRadius, setDefaultRadius] = useState(100);
   const [saving, setSaving] = useState(false);
+  const [userTier, setUserTier] = useState<string>('free');
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Password change
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -47,6 +49,22 @@ export default function SettingsScreen() {
         setSiren(data.siren);
         setDefaultRadius(data.default_radius);
       }
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('tier')
+        .eq('id', user.id)
+        .single();
+
+      if (profileData?.tier) setUserTier(profileData.tier);
+
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+
+      setUnreadCount(count ?? 0);
     })();
   }, []);
 
@@ -221,6 +239,31 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>ACCOUNT</Text>
           <View style={styles.card}>
 
+            {/* Messages row */}
+            <TouchableOpacity
+              style={styles.row}
+              activeOpacity={0.7}
+              onPress={() => router.push('/messages')}
+            >
+              <View style={styles.rowLeft}>
+                <Ionicons name="mail-outline" size={22} color="#FFD700" />
+                <View>
+                  <Text style={styles.rowLabel}>Messages</Text>
+                  <Text style={styles.rowSub}>Updates and notices from DoubleYellow</Text>
+                </View>
+              </View>
+              <View style={styles.rowRight}>
+                {unreadCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+                  </View>
+                )}
+                <Text style={styles.rowArrow}>›</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
             {/* Email row */}
             <TouchableOpacity
               style={styles.row}
@@ -339,11 +382,18 @@ export default function SettingsScreen() {
                 <Ionicons name="star-outline" size={22} color="#FFD700" />
                 <View>
                   <Text style={styles.rowLabel}>Current Plan</Text>
-                  <Text style={styles.rowSub}>Free — Year 1 Beta</Text>
+                  <Text style={styles.rowSub}>
+                    {userTier === 'unlimited' ? 'Unlimited — Full Access'
+                      : userTier === 'pro' ? 'Pro'
+                      : userTier === 'basic' ? 'Basic'
+                      : 'Free — Year 1 Beta'}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.freeBadge}>
-                <Text style={styles.freeBadgeText}>FREE</Text>
+              <View style={[styles.freeBadge, userTier === 'unlimited' && styles.unlimitedBadge]}>
+                <Text style={[styles.freeBadgeText, userTier === 'unlimited' && styles.unlimitedBadgeText]}>
+                  {userTier.toUpperCase()}
+                </Text>
               </View>
             </View>
 
@@ -438,6 +488,17 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', letterSpacing: 1 },
   rowSub: { fontSize: 11, color: '#555555', letterSpacing: 0.5, marginTop: 2 },
   rowArrow: { fontSize: 20, color: '#444444' },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  unreadBadge: {
+    backgroundColor: '#C1121F',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: { fontSize: 11, fontWeight: '900', color: '#FFFFFF' },
   divider: { height: 1, backgroundColor: '#2A2A2A', marginHorizontal: 16 },
   radiusRow: { flexDirection: 'row', gap: 8, padding: 16 },
   radiusButton: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#333333', alignItems: 'center', backgroundColor: '#0D0D0D' },
@@ -447,6 +508,8 @@ const styles = StyleSheet.create({
   radiusSub: { fontSize: 11, color: '#444444', letterSpacing: 0.5, paddingHorizontal: 16, paddingBottom: 16, lineHeight: 16 },
   freeBadge: { borderWidth: 1, borderColor: '#FFD700', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
   freeBadgeText: { fontSize: 10, fontWeight: '900', color: '#FFD700', letterSpacing: 2 },
+  unlimitedBadge: { borderColor: '#FFD700', backgroundColor: '#FFD700' },
+  unlimitedBadgeText: { color: '#0D0D0D' },
   logoutButton: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#E63946', borderRadius: 12, paddingVertical: 18, alignItems: 'center' },
   logoutText: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 4 },
   editPanel: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },

@@ -1,13 +1,16 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const [isParkedActive, setIsParkedActive] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -15,24 +18,39 @@ export default function HomeScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Check for active parked session every time home screen is focused
+  // Refresh session state and avatar every time home screen is focused
   useFocusEffect(
     useCallback(() => {
       (async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        const { data } = await supabase
+
+        const { data: session } = await supabase
           .from('parked_sessions')
           .select('id')
           .eq('user_id', user.id)
           .eq('is_active', true)
           .single();
-        setIsParkedActive(!!data);
+        setIsParkedActive(!!session);
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .single();
+        if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
+
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('read', false);
+        setUnreadMessages(count ?? 0);
       })();
     }, [])
   );
 
-  // Flash animation when active
+  // Pulse animation when active
   useEffect(() => {
     if (isParkedActive) {
       loopRef.current = Animated.loop(
@@ -50,58 +68,104 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" backgroundColor="#888888" />
+      <StatusBar style="light" backgroundColor="#0D0D0D" />
 
-      <View style={styles.inner}>
-
-        {/* Top half - I've Parked */}
-        <TouchableOpacity
-          style={[styles.half, styles.topHalf, isParkedActive && styles.topHalfActive]}
-          activeOpacity={0.8}
-          onPress={() => router.push('/parked')}
-        >
-          {isParkedActive ? (
-            <Animated.View style={[styles.activatedOverlay, { opacity: pulse }]}>
-              <Text style={styles.activatedText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>ACTIVATED</Text>
-              <Text style={styles.activatedSub}>Tap to manage</Text>
-            </Animated.View>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.logo}>DOUBLEYELLOW</Text>
+        <TouchableOpacity onPress={() => router.push('/profile')} activeOpacity={0.7}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
           ) : (
-            <>
-              <View style={styles.lineRow}>
-                <View style={styles.yellowLineRow} />
-                <Text style={styles.roadWord}>I'VE</Text>
-              </View>
-              <View style={styles.lineGap} />
-              <View style={styles.lineRow}>
-                <View style={styles.yellowLineRow} />
-                <Text style={styles.roadWord}>PARKED</Text>
-              </View>
-            </>
+            <View style={styles.avatarCircle}>
+              <Ionicons name="person-outline" size={22} color="#555555" />
+            </View>
           )}
         </TouchableOpacity>
+      </View>
 
-        {/* Middle icon bar */}
-        <View style={styles.iconBar}>
-          <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/profile')} activeOpacity={0.7}>
-            <Text style={styles.iconLabel}>PROFILE</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/settings')} activeOpacity={0.7}>
-            <Text style={styles.iconLabel}>SETTINGS</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Status row */}
+      <View style={styles.statusRow}>
+        <View style={[styles.statusDot, isParkedActive && styles.statusDotActive]} />
+        <Text style={[styles.statusText, isParkedActive && styles.statusTextActive]}>
+          {isParkedActive ? 'PROTECTION ACTIVE' : 'INACTIVE'}
+        </Text>
+      </View>
 
-        {/* Bottom half - Warden Spotted */}
-        <TouchableOpacity style={[styles.half, styles.bottomHalf]} activeOpacity={0.8} onPress={() => router.push('/warden')}>
-          <View style={styles.triangleWrapper}>
-            <View style={styles.triangle} />
-            <Text style={styles.exclamation}>!</Text>
-          </View>
-          <View style={styles.wardenTextWrapper}>
-            <Text style={styles.wardenText}>WARDEN</Text>
-            <Text style={styles.wardenText}>SPOTTED</Text>
-          </View>
+      {/* Top double yellow lines */}
+      <View style={styles.dyLines}>
+        <View style={styles.dyLine} />
+        <View style={styles.dyLine} />
+      </View>
+
+      {/* Cards */}
+      <View style={styles.cards}>
+
+        {/* I'VE PARKED */}
+        <TouchableOpacity
+          style={[styles.card, isParkedActive ? styles.cardActivated : styles.cardParked]}
+          onPress={() => router.push('/parked')}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.cardCorner, isParkedActive ? styles.cardCornerActivated : styles.cardCornerParked]} />
+          <Animated.View style={[
+            styles.iconCircle,
+            isParkedActive ? styles.iconCircleActivated : styles.iconCircleParked,
+            isParkedActive && { opacity: pulse },
+          ]}>
+            <Ionicons
+              name={isParkedActive ? 'radio-button-on' : 'car-outline'}
+              size={50}
+              color={isParkedActive ? '#FFFFFF' : '#FFD700'}
+            />
+          </Animated.View>
+          <Text style={[styles.cardLabel, isParkedActive && styles.cardLabelActivated]}>
+            {isParkedActive ? 'ACTIVATED' : "I'VE PARKED"}
+          </Text>
+          <Text style={styles.cardSub}>
+            {isParkedActive ? 'Tap to manage' : 'Activate community watch'}
+          </Text>
         </TouchableOpacity>
 
+        {/* WARDEN SPOTTED */}
+        <TouchableOpacity
+          style={[styles.card, styles.cardWarden]}
+          onPress={() => router.push('/warden')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.cardCornerWarden} />
+          <View style={[styles.iconCircle, styles.iconCircleWarden]}>
+            <Ionicons name="warning-outline" size={50} color="#FFD700" />
+          </View>
+          <Text style={[styles.cardLabel, styles.cardLabelWarden]}>REPORT A WARDEN</Text>
+          <Text style={styles.cardSub}>Raise the alarm. Save someone's day!</Text>
+        </TouchableOpacity>
+
+      </View>
+
+      {/* Bottom double yellow lines */}
+      <View style={styles.dyLines}>
+        <View style={styles.dyLine} />
+        <View style={styles.dyLine} />
+      </View>
+
+      {/* Bottom nav */}
+      <View style={styles.navBar}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')} activeOpacity={0.7}>
+          <View style={styles.navIconWrap}>
+            <Ionicons name="person-outline" size={20} color="#333333" />
+            {unreadMessages > 0 && <View style={styles.navBadge} />}
+          </View>
+          <Text style={styles.navLabel}>PROFILE</Text>
+        </TouchableOpacity>
+        <View style={styles.navItem}>
+          <View style={styles.navDotActive} />
+          <Text style={[styles.navLabel, styles.navLabelActive]}>HOME</Text>
+        </View>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/settings')} activeOpacity={0.7}>
+          <Ionicons name="settings-outline" size={20} color="#333333" />
+          <Text style={styles.navLabel}>SETTINGS</Text>
+        </TouchableOpacity>
       </View>
 
     </SafeAreaView>
@@ -111,134 +175,226 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#888888',
+    backgroundColor: '#0D0D0D',
   },
-  inner: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  iconBar: {
+
+  // Header
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-  },
-  iconButton: {
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 48 : 16,
+    paddingBottom: 10,
   },
-  iconLabel: {
-    fontSize: 12,
+  logo: {
+    fontSize: 13,
     fontWeight: '900',
-    color: '#0D0D0D',
-    letterSpacing: 2,
+    letterSpacing: 3,
+    color: '#FFD700',
   },
-  half: {
-    flex: 1,
-    borderRadius: 16,
+  avatarCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
     borderColor: '#333333',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  topHalf: {
+    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0D0D0D',
-    paddingHorizontal: 24,
   },
-  activatedOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#C1121F',
-    justifyContent: 'center',
+  avatarImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: '#FFD700',
+  },
+
+  // Status
+  statusRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    zIndex: 2,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
   },
-  activatedText: {
-    fontSize: 52,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 3,
-    width: '100%',
-    textAlign: 'center',
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#2A2A2A',
   },
-  activatedSub: {
-    fontSize: 13,
+  statusDotActive: {
+    backgroundColor: '#C1121F',
+    shadowColor: '#C1121F',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  statusText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.6)',
-    letterSpacing: 3,
+    letterSpacing: 2,
+    color: '#333333',
   },
-  bottomHalf: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0D0D0D',
-    gap: 20,
+  statusTextActive: {
+    color: '#C1121F',
   },
-  lineRow: {
-    justifyContent: 'center',
-    alignItems: 'center',
+
+  // Double yellow lines
+  dyLines: {
+    gap: 4,
   },
-  yellowLineRow: {
-    width: '100%',
-    height: 80,
+  dyLine: {
+    height: 3,
     backgroundColor: '#FFD700',
-    position: 'absolute',
   },
-  lineGap: {
-    height: 20,
-    backgroundColor: '#0D0D0D',
+
+  // Cards
+  cards: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 12,
+    padding: 14,
   },
-  roadWord: {
-    fontSize: 52,
-    fontWeight: '900',
-    color: '#0D0D0D',
-    letterSpacing: 8,
-    lineHeight: 80,
-    zIndex: 1,
-  },
-  triangleWrapper: {
-    width: 160,
-    height: 145,
-    justifyContent: 'center',
+  card: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: 1,
+    backgroundColor: '#111111',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    overflow: 'hidden',
     position: 'relative',
   },
-  triangle: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 80,
-    borderRightWidth: 80,
-    borderBottomWidth: 140,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#FFD700',
+  cardParked: {
+    borderColor: '#FFD700',
+  },
+  cardActivated: {
+    borderColor: '#C1121F',
+    backgroundColor: '#110000',
+  },
+  cardWarden: {
+    borderColor: '#FFD700',
+    backgroundColor: '#111111',
+  },
+
+  // Corner accents
+  cardCorner: {
     position: 'absolute',
     top: 0,
+    right: 0,
+    width: 64,
+    height: 64,
+    borderRadius: 0,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 60,
   },
-  exclamation: {
-    fontSize: 72,
-    fontWeight: '900',
-    color: '#0D0D0D',
+  cardCornerParked: {
+    backgroundColor: 'rgba(255,215,0,0.07)',
+  },
+  cardCornerActivated: {
+    backgroundColor: 'rgba(193,18,31,0.1)',
+  },
+  cardCornerWarden: {
     position: 'absolute',
-    bottom: 10,
-    zIndex: 10,
+    top: 0,
+    right: 0,
+    width: 64,
+    height: 64,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 60,
+    backgroundColor: 'rgba(193,18,31,0.07)',
   },
-  wardenTextWrapper: {
+
+  // Icon circles
+  iconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  wardenText: {
-    fontSize: 52,
+  iconCircleParked: {
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.25)',
+  },
+  iconCircleActivated: {
+    backgroundColor: '#C1121F',
+    borderWidth: 1,
+    borderColor: '#C1121F',
+  },
+  iconCircleWarden: {
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.25)',
+  },
+
+  // Card text
+  cardLabel: {
+    fontSize: 22,
     fontWeight: '900',
+    letterSpacing: 3,
     color: '#FFFFFF',
-    letterSpacing: 4,
-    lineHeight: 58,
+  },
+  cardLabelActivated: {
+    color: '#C1121F',
+  },
+  cardLabelWarden: {
+    color: '#FFFFFF',
+  },
+  cardSub: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: '#444444',
+  },
+
+  // Bottom nav
+  navBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    height: 56,
+    borderTopWidth: 1,
+    borderTopColor: '#1A1A1A',
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  navDotActive: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#FFD700',
+  },
+  navLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: '#333333',
+  },
+  navLabelActive: {
+    color: '#FFD700',
+  },
+  navIconWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C1121F',
   },
 });

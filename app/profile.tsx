@@ -62,6 +62,7 @@ export default function ProfileScreen() {
   const [editedUsername, setEditedUsername] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
   const [usernameError, setUsernameError] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -174,6 +175,13 @@ export default function ProfileScreen() {
 
         setLeaderboard(entries);
       }
+
+      const { count: msgCount } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+      setUnreadCount(msgCount ?? 0);
     })();
   }, []);
 
@@ -486,6 +494,30 @@ export default function ProfileScreen() {
         })()}
 
         <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.messagesRow}
+            onPress={() => router.push('/messages')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.messagesLeft}>
+              <Ionicons name="mail-outline" size={20} color="#FFD700" />
+              <View>
+                <Text style={styles.messagesLabel}>Messages</Text>
+                <Text style={styles.messagesSub}>Updates and notices from DoubleYellow</Text>
+              </View>
+            </View>
+            <View style={styles.messagesRight}>
+              {unreadCount > 0 && (
+                <View style={styles.msgBadge}>
+                  <Text style={styles.msgBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+              <Text style={styles.messagesArrow}>›</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>LEADERBOARD</Text>
           <View style={styles.leaderboardCard}>
             {leaderboard.length === 0 ? (
@@ -766,4 +798,29 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: -4,
   },
+  messagesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333333',
+    borderRadius: 12,
+    padding: 16,
+  },
+  messagesLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  messagesLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', letterSpacing: 1 },
+  messagesSub: { fontSize: 11, color: '#555555', letterSpacing: 0.5, marginTop: 2 },
+  messagesRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  messagesArrow: { fontSize: 20, color: '#444444' },
+  msgBadge: {
+    backgroundColor: '#C1121F',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  msgBadgeText: { fontSize: 11, fontWeight: '900', color: '#FFFFFF' },
 });

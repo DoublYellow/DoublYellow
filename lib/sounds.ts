@@ -4,14 +4,14 @@ import * as Haptics from 'expo-haptics';
 let activeSound: Audio.Sound | null = null;
 let activeCheer: Audio.Sound | null = null;
 
-async function playSound(asset: number): Promise<void> {
+async function playSound(asset: number, overrideSilent = false): Promise<void> {
   try {
     if (activeSound) {
       await activeSound.unloadAsync();
       activeSound = null;
     }
     await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
+      playsInSilentModeIOS: overrideSilent,
       staysActiveInBackground: false,
       shouldDuckAndroid: false,
     });
@@ -61,7 +61,7 @@ export async function playAlertSent(): Promise<void> {
   setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 120);
   setTimeout(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success), 480);
   // Fanfare and cheer play simultaneously — cheer slightly quieter so fanfare cuts through
-  playSound(require('../assets/sounds/alert_sent.wav'));
+  playSound(require('../assets/sounds/alert_sent.wav'), true);
   playSoundLayer(require('../assets/sounds/cheer.wav'), 0.75);
 }
 
