@@ -14,14 +14,23 @@ export default function VerifyEmailScreen() {
 
   // Poll for email verification — once confirmed, session will exist
   useEffect(() => {
+    let mounted = true;
     const interval = setInterval(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.email_confirmed_at) {
-        clearInterval(interval);
-        router.replace('/');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (session?.user?.email_confirmed_at) {
+          clearInterval(interval);
+          router.replace('/');
+        }
+      } catch {
+        // Network error — keep polling
       }
     }, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const handleResend = async () => {

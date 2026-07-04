@@ -69,23 +69,26 @@ export default function SettingsScreen() {
   }, []);
 
   const saveSetting = async (updates: Partial<{ notifications: boolean; siren: boolean; default_radius: number }>) => {
-  setSaving(true);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) { setSaving(false); return; }
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
 
-  const { error } = await supabase
-    .from('settings')
-    .upsert({
-      user_id: user.id,
-      notifications,
-      siren,
-      default_radius: defaultRadius,
-      ...updates,
-      updated_at: new Date().toISOString(),
-    });
+    const { error } = await supabase
+      .from('settings')
+      .upsert({
+        user_id: user.id,
+        notifications,
+        siren,
+        default_radius: defaultRadius,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      });
 
-  setSaving(false);
-};
+    if (error) {
+      Alert.alert('Save Failed', 'Could not save your settings. Please try again.');
+    }
+    setSaving(false);
+  };
 
   const handleNotifications = (val: boolean) => {
     setNotifications(val);

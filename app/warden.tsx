@@ -75,6 +75,8 @@ export default function WardenScreen() {
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('');
   const [totalReports, setTotalReports] = useState(0);
+  const [earnedActivation, setEarnedActivation] = useState(false);
+  const [reportsUntilCredit, setReportsUntilCredit] = useState<number | null>(null);
 
   const RATE_LIMIT_MINUTES = 5;
   const RATE_LIMIT_MAX = 2;
@@ -189,6 +191,47 @@ export default function WardenScreen() {
         .eq('photo_verified', true);
       if (photoCount === 1) earned.push('VERIFIED');
     }
+
+    // ── Earned activation credit check ──────────────────────────────────────
+    // Every 10 photo-verified reports earns +1 activation credit
+    if (photoVerified) {
+      const { count: verifiedCount } = await supabase
+        .from('warden_reports')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('photo_verified', true);
+
+      const { count: creditsGranted } = await supabase
+        .from('earned_activations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('source', 'warden_report');
+
+      const vCount = verifiedCount ?? 0;
+      const shouldHave = Math.floor(vCount / 10);
+      const has = creditsGranted ?? 0;
+
+      if (shouldHave > has) {
+        // Grant a new credit — expiry depends on tier
+        const { data: profileForTier } = await supabase
+          .from('profiles').select('tier').eq('id', user.id).single();
+        const tier = profileForTier?.tier ?? 'free';
+        const expiresAt = tier === 'free'
+          ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+          : null; // Pro credits never expire
+        await supabase.from('earned_activations').insert({
+          user_id: user.id,
+          expires_at: expiresAt,
+          source: 'warden_report',
+        });
+        setEarnedActivation(true);
+        setReportsUntilCredit(10); // just earned one — next one in 10 more
+      } else {
+        const reportsIntoCurrentBlock = vCount % 10;
+        setReportsUntilCredit(10 - reportsIntoCurrentBlock);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     setPointsEarned(points);
     setNewBadges(earned);
@@ -307,6 +350,20 @@ export default function WardenScreen() {
               <Text key={badge} style={styles.badgesEarnedItem}><Ionicons name="ribbon-outline" size={18} color="#FFD700" /> {badge}</Text>
             ))}
           </View>
+        )}
+
+        {earnedActivation && (
+          <View style={styles.creditEarned}>
+            <Ionicons name="car-sport" size={22} color="#4CAF50" />
+            <Text style={styles.creditEarnedText}>BONUS ACTIVATION EARNED!</Text>
+            <Text style={styles.creditEarnedSub}>You've verified 10 wardens — a free activation has been added to your account.</Text>
+          </View>
+        )}
+
+        {!earnedActivation && photoVerified && reportsUntilCredit !== null && (
+          <Text style={styles.creditProgress}>
+            <Ionicons name="car-outline" size={13} color="#555555" /> {reportsUntilCredit} more verified report{reportsUntilCredit !== 1 ? 's' : ''} until a free activation
+          </Text>
         )}
 
         <Text style={styles.successEncourage}>Keep spotting. Keep saving.{'\n'}You're making a real difference.{' '}
@@ -649,5 +706,36 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 2,
+  },
+  creditEarned: {
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    backgroundColor: '#0A1F0A',
+  },
+  creditEarnedText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#4CAF50',
+    letterSpacing: 2,
+  },
+  creditEarnedSub: {
+    fontSize: 11,
+    color: '#888888',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    lineHeight: 16,
+  },
+  creditProgress: {
+    fontSize: 12,
+    color: '#555555',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
 });

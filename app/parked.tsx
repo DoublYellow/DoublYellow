@@ -2,7 +2,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MobileAds, { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
 import { Ionicons } from '@expo/vector-icons';
 import { sendLocalNotification } from '../lib/notifications';
@@ -19,22 +19,30 @@ const adUnitId = __DEV__
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Tier activation limits ───────────────────────────────────────────────────
-// null = unlimited. 'free' always shows ads. Paid tiers show ads once limit hit.
-const TIER_LIMITS: Record<string, number | null> = {
-  free:      null, // unlimited activations, but always shows ad
-  basic:     8,
-  pro:       20,
-  unlimited: null, // unlimited, never shows ad
-};
+// ─── Beta mode — set to false when paid tiers go live ────────────────────────
+const BETA_MODE = true;
 
-function tierRequiresAd(tier: string, monthlyCount: number): boolean {
-  if (tier === 'unlimited') return false;
-  if (tier === 'free') return true;
-  const limit = TIER_LIMITS[tier] ?? 0;
-  return monthlyCount >= limit;
-}
+// ─── Tier activation limits ───────────────────────────────────────────────────
+// Free:      1 per week (resets Monday 00:00 UTC) + earned credits (expire 14d)
+// Pro:       1 per day (resets midnight UTC)      + earned credits (never expire)
+// Unlimited: unlimited, no limit check
 // ─────────────────────────────────────────────────────────────────────────────
+
+function getWeekStart(): Date {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0 = Sunday
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() - daysFromMonday);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
+}
+
+function getDayStart(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
 
 const RADII = ['50m', '100m', '250m', '500m'];
 const DEFAULT_RADIUS = '100m';
@@ -63,7 +71,8 @@ function formatMinutesAgo(mins: number): string {
 export default function ParkedScreen() {
   const navigation = useNavigation();
   const router = useRouter();
-  const { lat, lng } = useLocalSearchParams<{ lat: string; lng: string }>();
+  const { lat, lng, deactivate: autoDeactivateParam } = useLocalSearchParams<{ lat: string; lng: string; deactivate: string }>();
+  const autoDeactivate = autoDeactivateParam === '1';
   const [selectedRadius, setSelectedRadius] = useState(DEFAULT_RADIUS);
   const [saveForNext, setSaveForNext] = useState(false);
   const [isActive, setIsActive] = useState(false);
@@ -77,7 +86,9 @@ export default function ParkedScreen() {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [adLoaded, setAdLoaded] = useState(false);
   const [userTier, setUserTier] = useState<string>('free');
-  const [monthlyActivations, setMonthlyActivations] = useState(0);
+  const [basePeriodActivations, setBasePeriodActivations] = useState(0); // used this week (free) or today (pro)
+  const [earnedCredits, setEarnedCredits] = useState(0);
+  const [earnedCreditId, setEarnedCreditId] = useState<string | null>(null); // oldest available credit to use next
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [timerHours, setTimerHours] = useState(1);
   const [timerMinutes, setTimerMinutes] = useState(0);
@@ -124,18 +135,31 @@ export default function ParkedScreen() {
         .select('tier')
         .eq('id', user.id)
         .single();
-      if (profileData?.tier) setUserTier(profileData.tier);
+      const tier = profileData?.tier ?? 'free';
+      if (profileData?.tier) setUserTier(tier);
 
-      // Count this month's activations
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      const { count } = await supabase
-        .from('parked_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('created_at', startOfMonth.toISOString());
-      setMonthlyActivations(count ?? 0);
+      // Count activations used in current period (week for free, day for pro)
+      if (tier !== 'unlimited') {
+        const periodStart = tier === 'pro' ? getDayStart() : getWeekStart();
+        const { count: periodCount } = await supabase
+          .from('parked_sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('created_at', periodStart.toISOString());
+        setBasePeriodActivations(periodCount ?? 0);
+
+        // Fetch available earned credits (not used, not expired)
+        const { data: credits } = await supabase
+          .from('earned_activations')
+          .select('id, expires_at')
+          .eq('user_id', user.id)
+          .is('used_at', null)
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+          .order('granted_at', { ascending: true }); // use oldest first
+        const availableCredits = credits ?? [];
+        setEarnedCredits(availableCredits.length);
+        setEarnedCreditId(availableCredits[0]?.id ?? null);
+      }
 
       // Load default radius from settings
       const { data: settingsData } = await supabase
@@ -166,6 +190,13 @@ export default function ParkedScreen() {
       setLoading(false);
     })();
   }, []);
+
+  // Auto-trigger deactivation flow when arriving from home screen shortcut
+  useEffect(() => {
+    if (!loading && autoDeactivate && isActive) {
+      handleDeactivate();
+    }
+  }, [loading, autoDeactivate, isActive]);
 
   // Pulse animation
   useEffect(() => {
@@ -241,19 +272,26 @@ export default function ParkedScreen() {
   // Active Track GPS watcher — streams live position into liveLocationRef while active
   useEffect(() => {
     if (!isActive || !activeTrack) return;
+    let cancelled = false;
     let watcher: Location.LocationSubscription | null = null;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== 'granted' || cancelled) return;
       watcher = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.Balanced, distanceInterval: 25, timeInterval: 10000 },
         (loc) => {
           liveLocationRef.current = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         }
       );
+      if (cancelled) {
+        // Component unmounted before watcher resolved — remove immediately
+        watcher.remove();
+        return;
+      }
       locationWatcherRef.current = watcher;
     })();
     return () => {
+      cancelled = true;
       watcher?.remove();
       locationWatcherRef.current = null;
     };
@@ -296,8 +334,18 @@ export default function ParkedScreen() {
     };
 
     let cleanup: (() => void) | undefined;
-    setup().then((fn) => { cleanup = fn; });
-    return () => { cleanup?.(); };
+    let unmounted = false;
+    setup().then((fn) => {
+      if (unmounted) {
+        fn?.(); // already unmounted — unsubscribe listeners immediately
+      } else {
+        cleanup = fn;
+      }
+    });
+    return () => {
+      unmounted = true;
+      cleanup?.();
+    };
   }, []);
 
   const handleSetTimer = async () => {
@@ -384,7 +432,21 @@ export default function ParkedScreen() {
       .single();
     if (data) setSessionId(data.id);
     setIsActive(true);
-    setMonthlyActivations(prev => prev + 1);
+
+    // Determine whether this activation consumed a base slot or an earned credit
+    const baseLimit = userTier === 'pro' ? 1 : 1; // 1/day pro, 1/week free
+    const baseExhausted = userTier !== 'unlimited' && basePeriodActivations >= baseLimit;
+    if (baseExhausted && earnedCreditId) {
+      // Mark the earned credit as used
+      await supabase
+        .from('earned_activations')
+        .update({ used_at: new Date().toISOString() })
+        .eq('id', earnedCreditId);
+      setEarnedCredits(prev => Math.max(0, prev - 1));
+      setEarnedCreditId(null);
+    } else {
+      setBasePeriodActivations(prev => prev + 1);
+    }
 
     const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data: recentReports } = await supabase
@@ -415,14 +477,17 @@ export default function ParkedScreen() {
   runActivateRef.current = runActivate;
 
   const handleActivate = () => {
-    const showAd = tierRequiresAd(userTier, monthlyActivations);
-    if (showAd && adLoaded) {
-      pendingActivateRef.current = true;
-      interstitialRef.current?.show();
-    } else {
-      // Either doesn't need an ad, or ad not ready — activate straight away
-      runActivate();
+    // In beta, always allow activation
+    if (!BETA_MODE && userTier !== 'unlimited') {
+      const baseLimit = userTier === 'pro' ? 1 : 1; // 1/day for pro, 1/week for free
+      const baseAvailable = basePeriodActivations < baseLimit;
+      const hasEarned = earnedCredits > 0;
+      if (!baseAvailable && !hasEarned) {
+        // No activations left — could show a paywall/upgrade prompt here
+        return;
+      }
     }
+    runActivate();
   };
 
   const handleDeactivate = () => {
@@ -704,6 +769,19 @@ export default function ParkedScreen() {
                 <View style={styles.unlimitedBadge}>
                   <Text style={styles.unlimitedBadgeText}>UNLIMITED</Text>
                 </View>
+                <TouchableOpacity
+                  onPress={() => Alert.alert(
+                    'Active Track',
+                    'Your GPS location updates continuously while the app is open. Ideal for delivery drivers and tradespeople who move around — alerts follow you as you drive, so you\'re always protected wherever you park.',
+                    [{ text: 'Got it', style: 'cancel' }]
+                  )}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <View style={styles.infoButton}>
+                    <Text style={styles.infoButtonText}>?</Text>
+                  </View>
+                </TouchableOpacity>
               </View>
             </TouchableOpacity>
           )}
@@ -790,6 +868,8 @@ const styles = StyleSheet.create({
   checkboxLabel: { fontSize: 14, color: '#888888', letterSpacing: 1 },
   unlimitedBadge: { backgroundColor: '#1A1600', borderWidth: 1, borderColor: '#FFD700', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   unlimitedBadgeText: { fontSize: 8, fontWeight: '900', color: '#FFD700', letterSpacing: 1.5 },
+  infoButton: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: '#555555', alignItems: 'center', justifyContent: 'center' },
+  infoButtonText: { fontSize: 10, fontWeight: '900', color: '#555555', lineHeight: 14 },
   locationButton: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 10, borderWidth: 1, borderColor: '#333333', backgroundColor: '#1A1A1A' },
   locationButtonSet: { borderColor: '#E63946', backgroundColor: '#1A0A0A' },
   locationButtonDisabled: { borderColor: '#222222', backgroundColor: '#111111', opacity: 0.5 },

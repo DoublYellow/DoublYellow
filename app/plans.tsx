@@ -19,20 +19,25 @@ const getPlanIcon = (id: string) => {
   }
 };
 
+// ─── Beta mode — set to false when paid tiers go live ────────────────────────
+const BETA_MODE = true;
+
 const PLANS = [
   {
     id: 'free',
     name: 'FREE',
     price: '£0',
+    fullPrice: null,
     period: '/ month',
-    tagline: 'Get started with Double Yellow',
+    tagline: 'Earn your way with the community',
     features: [
-      'Unlimited activations',
+      '1 activation per week',
+      'Earn +1 activation per 10 verified reports',
+      'Earned credits valid for 14 days',
       'Push notifications',
       'Siren alert',
       'Warden reporting',
       'Leaderboard & badges',
-      'Ad-supported',
     ],
     cta: 'FREE FOREVER',
     ctaDisabled: true,
@@ -40,65 +45,49 @@ const PLANS = [
     comingSoon: false,
   },
   {
-    id: 'basic',
-    name: 'BASIC',
-    price: '£2.99',
-    period: '/ month',
-    tagline: 'Perfect for regular parkers',
-    features: [
-      '8 activations per month',
-      'Push notifications',
-      'Siren alert',
-      'Warden reporting',
-      'Leaderboard & badges',
-      'No ads',
-    ],
-    cta: 'COMING SOON',
-    ctaDisabled: true,
-    highlight: false,
-    comingSoon: true,
-  },
-  {
     id: 'pro',
     name: 'PRO',
-    price: '£5.99',
+    price: BETA_MODE ? '£0' : '£5.99',
+    fullPrice: '£5.99',
     period: '/ month',
-    tagline: 'For the frequent driver',
+    tagline: 'For the regular parker',
     features: [
-      '20 activations per month',
+      '1 activation per day',
+      'Earn +1 activation per 10 verified reports',
+      'Earned credits never expire',
       'Push notifications',
       'Siren alert',
       'Warden reporting',
       'Leaderboard & badges',
-      'No ads',
       'Priority alerts',
     ],
-    cta: 'COMING SOON',
+    cta: BETA_MODE ? 'FREE IN BETA' : 'COMING SOON',
     ctaDisabled: true,
     highlight: true,
-    comingSoon: true,
+    comingSoon: !BETA_MODE,
   },
   {
     id: 'unlimited',
     name: 'UNLIMITED',
-    price: '£15.99',
+    price: BETA_MODE ? '£0' : '£14.99',
+    fullPrice: '£14.99',
     period: '/ month',
-    tagline: 'Never miss a warden',
+    tagline: 'For drivers always on the move',
     features: [
       'Unlimited activations',
+      'Active Track — GPS moves with you',
+      'Perfect for delivery & trade use',
       'Push notifications',
       'Siren alert',
       'Warden reporting',
       'Leaderboard & badges',
-      'No ads',
       'Priority alerts',
-      'Active Track (live GPS mode)',
       'Early access to new features',
     ],
-    cta: 'COMING SOON',
+    cta: BETA_MODE ? 'FREE IN BETA' : 'COMING SOON',
     ctaDisabled: true,
     highlight: false,
-    comingSoon: true,
+    comingSoon: !BETA_MODE,
   },
 ];
 
@@ -137,9 +126,21 @@ export default function PlansScreen() {
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
+        {BETA_MODE && (
+          <View style={styles.betaBanner}>
+            <Text style={styles.betaBannerTitle}>🎉 BETA — ALL FEATURES FREE</Text>
+            <Text style={styles.betaBannerSub}>
+              We're in early access. All plans are completely free while we're in beta.
+              Prices shown are what you'll pay when we launch paid tiers.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.intro}>
           <Text style={styles.introTitle}>Choose your plan</Text>
-          <Text style={styles.introSub}>Paid plans coming soon. Stay tuned!</Text>
+          <Text style={styles.introSub}>
+            {BETA_MODE ? 'All plans unlocked during beta' : 'Paid plans coming soon. Stay tuned!'}
+          </Text>
         </View>
 
         {PLANS.map((plan) => (
@@ -152,6 +153,11 @@ export default function PlansScreen() {
                 <Text style={styles.popularText}>MOST POPULAR</Text>
               </View>
             )}
+            {BETA_MODE && plan.id !== 'free' && (
+              <View style={styles.betaBadge}>
+                <Text style={styles.betaBadgeText}>BETA FREE</Text>
+              </View>
+            )}
             <View style={styles.planHeader}>
               {getPlanIcon(plan.id)}
               <View style={styles.planTitleRow}>
@@ -161,10 +167,13 @@ export default function PlansScreen() {
                 <Text style={styles.planTagline}>{plan.tagline}</Text>
               </View>
               <View style={styles.planPriceCol}>
-                {plan.comingSoon && (
+                {!BETA_MODE && plan.comingSoon && (
                   <View style={styles.soonBadge}>
                     <Text style={styles.soonText}>COMING SOON</Text>
                   </View>
+                )}
+                {BETA_MODE && plan.fullPrice && (
+                  <Text style={styles.planPriceStrike}>{plan.fullPrice}</Text>
                 )}
                 <Text style={[styles.planPrice, plan.highlight && styles.planPriceHighlight]}>
                   {plan.price}
@@ -257,6 +266,31 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   popularText: { fontSize: 9, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
+  betaBanner: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: '#1A2A00',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    borderRadius: 12,
+    padding: 16,
+    gap: 6,
+    alignItems: 'center',
+  },
+  betaBannerTitle: { fontSize: 13, fontWeight: '900', color: '#4CAF50', letterSpacing: 2 },
+  betaBannerSub: { fontSize: 11, color: '#888888', letterSpacing: 0.5, textAlign: 'center', lineHeight: 16 },
+  betaBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 16,
+    backgroundColor: '#4CAF50',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  betaBadgeText: { fontSize: 8, fontWeight: '900', color: '#0D0D0D', letterSpacing: 2 },
+  planPriceStrike: { fontSize: 12, color: '#555555', textDecorationLine: 'line-through', alignSelf: 'flex-end' },
   soonBadge: {
     backgroundColor: '#2A2A2A',
     borderRadius: 4,

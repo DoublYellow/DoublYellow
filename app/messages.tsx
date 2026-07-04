@@ -38,25 +38,32 @@ export default function MessagesScreen() {
 
   const fetchMessages = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (data) setMessages(data);
-    setLoading(false);
-
-    // Mark all as read after fetching
-    const unreadIds = (data ?? []).filter((m) => !m.read).map((m) => m.id);
-    if (unreadIds.length > 0) {
-      await supabase
+      const { data, error } = await supabase
         .from('messages')
-        .update({ read: true })
-        .in('id', unreadIds);
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        setMessages(data);
+        // Mark unread messages as read
+        const unreadIds = data.filter((m) => !m.read).map((m) => m.id);
+        if (unreadIds.length > 0) {
+          await supabase
+            .from('messages')
+            .update({ read: true })
+            .in('id', unreadIds);
+        }
+      }
+    } catch (err) {
+      console.warn('Messages fetch error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 

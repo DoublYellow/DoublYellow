@@ -62,7 +62,7 @@ export default function SignUpScreen() {
       // the user's chosen username always wins.
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert({ id: data.user.id, username: usernameClean, points: 0 }, { onConflict: 'id' });
+        .upsert({ id: data.user.id, username: usernameClean, points: 0, tier: 'unlimited' }, { onConflict: 'id' });
 
       if (profileError) {
         setLoading(false);

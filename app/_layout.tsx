@@ -23,10 +23,16 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setInitialized(true);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+      })
+      .catch(() => {
+        // If session fetch fails, treat as logged out
+      })
+      .finally(() => {
+        setInitialized(true);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);

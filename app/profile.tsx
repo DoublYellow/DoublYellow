@@ -30,16 +30,8 @@ type Profile = {
   drivers_saved: number;
 };
 
-const TIER_LIMITS: Record<string, number | null> = {
-  free:      null,
-  basic:     8,
-  pro:       20,
-  unlimited: null,
-};
-
 const TIER_LABELS: Record<string, string> = {
   free:      'FREE',
-  basic:     'BASIC',
   pro:       'PRO',
   unlimited: 'UNLIMITED',
 };
@@ -57,7 +49,11 @@ export default function ProfileScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [hasStreak, setHasStreak] = useState(false);
-  const [monthlyActivations, setMonthlyActivations] = useState(0);
+  const [basePeriodActivations, setBasePeriodActivations] = useState(0);
+  const [earnedCredits, setEarnedCredits] = useState(0);
+  const [nearestExpiry, setNearestExpiry] = useState<Date | null>(null);
+  const [verifiedReportCount, setVerifiedReportCount] = useState(0);
+  const [creditsGrantedCount, setCreditsGrantedCount] = useState(0);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [editedUsername, setEditedUsername] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
@@ -80,16 +76,60 @@ export default function ProfileScreen() {
         .eq('id', user.id)
         .single();
 
-      // Count this month's activations
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      const { count: activationCount } = await supabase
-        .from('parked_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('created_at', startOfMonth.toISOString());
-      setMonthlyActivations(activationCount ?? 0);
+      // Activation stats — period depends on tier
+      const tier = profileData?.tier ?? 'free';
+      const isUnlimited = tier === 'unlimited';
+
+      if (!isUnlimited) {
+        // Week start (Monday 00:00 UTC) for free; day start for pro
+        const getWeekStart = () => {
+          const now = new Date();
+          const day = now.getUTCDay();
+          const daysFromMonday = day === 0 ? 6 : day - 1;
+          const monday = new Date(now);
+          monday.setUTCDate(now.getUTCDate() - daysFromMonday);
+          monday.setUTCHours(0, 0, 0, 0);
+          return monday;
+        };
+        const getDayStart = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d; };
+        const periodStart = tier === 'pro' ? getDayStart() : getWeekStart();
+
+        const { count: periodCount } = await supabase
+          .from('parked_sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('created_at', periodStart.toISOString());
+        setBasePeriodActivations(periodCount ?? 0);
+
+        // Earned credits
+        const { data: credits } = await supabase
+          .from('earned_activations')
+          .select('expires_at')
+          .eq('user_id', user.id)
+          .is('used_at', null)
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+          .order('expires_at', { ascending: true, nullsFirst: false });
+        const available = credits ?? [];
+        setEarnedCredits(available.length);
+        // Find nearest expiry (for free tier warning)
+        const withExpiry = available.filter(c => c.expires_at);
+        if (withExpiry.length > 0) setNearestExpiry(new Date(withExpiry[0].expires_at));
+
+        // Verified reports & credits granted — for progress counter
+        const { count: vCount } = await supabase
+          .from('warden_reports')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('photo_verified', true);
+        setVerifiedReportCount(vCount ?? 0);
+
+        const { count: cgCount } = await supabase
+          .from('earned_activations')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('source', 'warden_report');
+        setCreditsGrantedCount(cgCount ?? 0);
+      }
 
       if (profileData) {
         setProfile(profileData);
@@ -274,7 +314,10 @@ export default function ProfileScreen() {
           text: '📷  Take Photo',
           onPress: async () => {
             const { status } = await ImagePicker.requestCameraPermissionsAsync();
-            if (status !== 'granted') return;
+            if (status !== 'granted') {
+              Alert.alert('Camera Access Needed', 'Please enable camera access in your device settings to take a photo.');
+              return;
+            }
             const result = await ImagePicker.launchCameraAsync({
               allowsEditing: true,
               aspect: [1, 1],
@@ -287,7 +330,10 @@ export default function ProfileScreen() {
           text: '🖼️  Choose from Gallery',
           onPress: async () => {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (status !== 'granted') return;
+            if (status !== 'granted') {
+              Alert.alert('Gallery Access Needed', 'Please enable photo library access in your device settings to choose a photo.');
+              return;
+            }
             const result = await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: true,
@@ -434,17 +480,38 @@ export default function ProfileScreen() {
         {/* ── Activation Credits Card ── */}
         {(() => {
           const tier = profile?.tier ?? 'free';
-          const limit = TIER_LIMITS[tier];
           const label = TIER_LABELS[tier] ?? 'FREE';
-          const renewal = new Date();
-          renewal.setMonth(renewal.getMonth() + 1);
-          renewal.setDate(1);
-          const renewalStr = renewal.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-          const isUnlimited = tier === 'unlimited' || tier === 'free' || limit === null;
-          const used = monthlyActivations;
-          const remaining = limit !== null ? Math.max(0, limit - used) : null;
-          const overQuota = limit !== null && used >= limit;
-          const fillPct = limit !== null ? Math.min(100, (used / limit) * 100) : 0;
+          const isUnlimited = tier === 'unlimited';
+
+          // Reset time labels
+          const getNextMonday = () => {
+            const now = new Date();
+            const day = now.getUTCDay();
+            const daysUntil = day === 0 ? 1 : 8 - day;
+            const d = new Date(now);
+            d.setUTCDate(now.getUTCDate() + daysUntil);
+            d.setUTCHours(0, 0, 0, 0);
+            return d;
+          };
+          const getTomorrow = () => {
+            const d = new Date();
+            d.setUTCDate(d.getUTCDate() + 1);
+            d.setUTCHours(0, 0, 0, 0);
+            return d;
+          };
+          const resetDate = tier === 'pro' ? getTomorrow() : getNextMonday();
+          const resetStr = resetDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+
+          const baseLimit = isUnlimited ? null : 1;
+          const baseUsed = basePeriodActivations;
+          const baseRemaining = baseLimit !== null ? Math.max(0, baseLimit - baseUsed) : null;
+          const baseExhausted = baseLimit !== null && baseUsed >= baseLimit;
+          const baseFillPct = baseLimit !== null ? Math.min(100, (baseUsed / baseLimit) * 100) : 0;
+
+          // Progress toward next earned credit
+          const reportsIntoBlock = verifiedReportCount % 10;
+          const reportsUntilNext = 10 - reportsIntoBlock;
+          const creditProgressPct = (reportsIntoBlock / 10) * 100;
 
           return (
             <View style={styles.creditsCard}>
@@ -457,7 +524,7 @@ export default function ProfileScreen() {
                 </View>
                 <TouchableOpacity onPress={() => router.push('/plans')} activeOpacity={0.8} style={styles.upgradeBtn}>
                   <Text style={styles.upgradeBtnText}>
-                    {tier === 'unlimited' ? 'MANAGE' : 'UPGRADE'}
+                    {isUnlimited ? 'MANAGE' : 'UPGRADE'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -465,28 +532,64 @@ export default function ProfileScreen() {
               {isUnlimited ? (
                 <View style={styles.creditsUnlimitedRow}>
                   <Text style={styles.creditsUnlimitedText}>∞  UNLIMITED</Text>
-                  {tier === 'free' && (
-                    <Text style={styles.creditsAdNote}>Ads play on each activation</Text>
-                  )}
+                  <Text style={styles.creditsAdNote}>Active Track GPS available</Text>
                 </View>
               ) : (
                 <>
-                  <View style={styles.creditsCountRow}>
-                    <Text style={[styles.creditsRemaining, overQuota && styles.creditsRemainingOver]}>
-                      {remaining}
+                  {/* Base allocation */}
+                  <View style={styles.creditsSection}>
+                    <Text style={styles.creditsSectionLabel}>
+                      {tier === 'pro' ? 'DAILY ACTIVATION' : 'WEEKLY ACTIVATION'}
                     </Text>
-                    <Text style={styles.creditsRemainingLabel}>
-                      {overQuota ? 'credits used up — ads will play until' : `of ${limit} remaining — resets`} {renewalStr}
+                    <View style={styles.creditsCountRow}>
+                      <Text style={[styles.creditsRemaining, baseExhausted && styles.creditsRemainingOver]}>
+                        {baseRemaining}
+                      </Text>
+                      <Text style={styles.creditsRemainingLabel}>
+                        {baseExhausted ? 'used — resets' : 'remaining — resets'} {resetStr}
+                      </Text>
+                    </View>
+                    <View style={styles.creditsBar}>
+                      <View style={[
+                        styles.creditsFill,
+                        { width: `${baseFillPct}%` as any },
+                        baseExhausted && styles.creditsFillOver,
+                      ]} />
+                    </View>
+                  </View>
+
+                  {/* Earned credits */}
+                  <View style={styles.creditsSection}>
+                    <Text style={styles.creditsSectionLabel}>EARNED ACTIVATIONS</Text>
+                    <View style={styles.earnedRow}>
+                      <Ionicons name="car-sport" size={20} color={earnedCredits > 0 ? '#4CAF50' : '#444444'} />
+                      <Text style={[styles.earnedCount, earnedCredits > 0 && styles.earnedCountActive]}>
+                        {earnedCredits}
+                      </Text>
+                      <Text style={styles.earnedLabel}>
+                        {earnedCredits === 1 ? 'credit' : 'credits'} available
+                        {tier === 'free' && nearestExpiry
+                          ? ` · next expires ${nearestExpiry.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                          : tier === 'pro' ? ' · never expire' : ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Progress toward next earned credit */}
+                  <View style={styles.creditsSection}>
+                    <View style={styles.creditProgressHeader}>
+                      <Text style={styles.creditsSectionLabel}>NEXT EARNED CREDIT</Text>
+                      <Text style={styles.creditProgressFraction}>{reportsIntoBlock}/10 verified reports</Text>
+                    </View>
+                    <View style={styles.creditsBar}>
+                      <View style={[styles.creditsFillGreen, { width: `${creditProgressPct}%` as any }]} />
+                    </View>
+                    <Text style={styles.creditsUsed}>
+                      {reportsUntilNext === 10
+                        ? 'Submit a photo-verified warden report to start earning'
+                        : `${reportsUntilNext} more photo-verified report${reportsUntilNext !== 1 ? 's' : ''} until your next free activation`}
                     </Text>
                   </View>
-                  <View style={styles.creditsBar}>
-                    <View style={[
-                      styles.creditsFill,
-                      { width: `${fillPct}%` as any },
-                      overQuota && styles.creditsFillOver,
-                    ]} />
-                  </View>
-                  <Text style={styles.creditsUsed}>{used} used this month</Text>
                 </>
               )}
             </View>
@@ -526,7 +629,7 @@ export default function ProfileScreen() {
               </View>
             ) : (
               leaderboard.map((entry) => (
-                <View key={entry.username} style={[styles.leaderRow, entry.isMe && styles.leaderRowMe]}>
+                <View key={`${entry.rank}-${entry.username}`} style={[styles.leaderRow, entry.isMe && styles.leaderRowMe]}>
                   {entry.rank === 1
                     ? <Text style={[styles.leaderRank, { color: '#FFD700', fontSize: 13 }]}>1ST</Text>
                     : entry.rank === 2
@@ -792,11 +895,56 @@ const styles = StyleSheet.create({
   creditsFillOver: {
     backgroundColor: '#E63946',
   },
+  creditsSection: {
+    gap: 6,
+  },
+  creditsSectionLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#444444',
+    letterSpacing: 2,
+  },
+  earnedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  earnedCount: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#444444',
+    letterSpacing: 1,
+  },
+  earnedCountActive: {
+    color: '#4CAF50',
+  },
+  earnedLabel: {
+    fontSize: 11,
+    color: '#555555',
+    letterSpacing: 0.5,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  creditProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  creditProgressFraction: {
+    fontSize: 10,
+    color: '#555555',
+    letterSpacing: 0.5,
+  },
+  creditsFillGreen: {
+    height: 4,
+    backgroundColor: '#4CAF50',
+    borderRadius: 2,
+  },
   creditsUsed: {
     fontSize: 10,
     color: '#444444',
-    letterSpacing: 1,
-    marginTop: -4,
+    letterSpacing: 0.5,
+    lineHeight: 14,
   },
   messagesRow: {
     flexDirection: 'row',

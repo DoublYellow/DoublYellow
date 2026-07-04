@@ -102,30 +102,46 @@ export default function HomeScreen() {
       <View style={styles.cards}>
 
         {/* I'VE PARKED */}
-        <TouchableOpacity
-          style={[styles.card, isParkedActive ? styles.cardActivated : styles.cardParked]}
-          onPress={() => router.push('/parked')}
-          activeOpacity={0.85}
-        >
-          <View style={[styles.cardCorner, isParkedActive ? styles.cardCornerActivated : styles.cardCornerParked]} />
-          <Animated.View style={[
-            styles.iconCircle,
-            isParkedActive ? styles.iconCircleActivated : styles.iconCircleParked,
-            isParkedActive && { opacity: pulse },
-          ]}>
-            <Ionicons
-              name={isParkedActive ? 'radio-button-on' : 'car-outline'}
-              size={50}
-              color={isParkedActive ? '#FFFFFF' : '#FFD700'}
-            />
-          </Animated.View>
-          <Text style={[styles.cardLabel, isParkedActive && styles.cardLabelActivated]}>
-            {isParkedActive ? 'ACTIVATED' : "I'VE PARKED"}
-          </Text>
-          <Text style={styles.cardSub}>
-            {isParkedActive ? 'Tap to manage' : 'Activate community watch'}
-          </Text>
-        </TouchableOpacity>
+        {isParkedActive ? (
+          <View style={[styles.card, styles.cardActivated]}>
+            <View style={[styles.cardCorner, styles.cardCornerActivated]} />
+            <Animated.View style={[styles.iconCircle, styles.iconCircleActivated, { opacity: pulse }]}>
+              <Ionicons name="radio-button-on" size={50} color="#FFFFFF" />
+            </Animated.View>
+            <Text style={[styles.cardLabel, styles.cardLabelActivated]}>ACTIVATED</Text>
+            <Text style={styles.cardSub}>Protection active</Text>
+            <View style={styles.activeButtonRow}>
+              <TouchableOpacity
+                style={styles.manageButton}
+                onPress={() => router.push('/parked')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.manageButtonText}>MANAGE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deactivateButton}
+                onPress={() => router.push('/parked?deactivate=1')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="stop-circle-outline" size={15} color="#C1121F" />
+                <Text style={styles.deactivateButtonText}>DEACTIVATE</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.card, styles.cardParked]}
+            onPress={() => router.push('/parked')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.cardCorner, styles.cardCornerParked]} />
+            <Animated.View style={[styles.iconCircle, styles.iconCircleParked]}>
+              <Ionicons name="car-outline" size={50} color="#FFD700" />
+            </Animated.View>
+            <Text style={styles.cardLabel}>{"I'VE PARKED"}</Text>
+            <Text style={styles.cardSub}>Activate community watch</Text>
+          </TouchableOpacity>
+        )}
 
         {/* WARDEN SPOTTED */}
         <TouchableOpacity
@@ -331,6 +347,45 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,215,0,0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255,215,0,0.25)',
+  },
+
+  // Active-state split buttons
+  activeButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  manageButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+  },
+  manageButtonText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 2,
+  },
+  deactivateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C1121F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deactivateButtonText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#C1121F',
+    letterSpacing: 2,
   },
 
   // Card text
