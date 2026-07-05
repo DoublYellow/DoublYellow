@@ -193,39 +193,22 @@ export default function WardenScreen() {
     }
 
     // ── Earned activation credit check ──────────────────────────────────────
-    // Every 10 photo-verified reports earns +1 activation credit
+    // Credits are granted server-side by a DB trigger (see supabase_earned_activations.sql).
+    // Here we just query the updated counts to show the user their progress.
     if (photoVerified) {
-      const { count: verifiedCount } = await supabase
-        .from('warden_reports')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('photo_verified', true);
-
-      const { count: creditsGranted } = await supabase
-        .from('earned_activations')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('source', 'warden_report');
+      const [{ count: verifiedCount }, { count: creditsGranted }] = await Promise.all([
+        supabase.from('warden_reports').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('photo_verified', true),
+        supabase.from('earned_activations').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('source', 'warden_report'),
+      ]);
 
       const vCount = verifiedCount ?? 0;
       const shouldHave = Math.floor(vCount / 10);
       const has = creditsGranted ?? 0;
 
       if (shouldHave > has) {
-        // Grant a new credit — expiry depends on tier
-        const { data: profileForTier } = await supabase
-          .from('profiles').select('tier').eq('id', user.id).single();
-        const tier = profileForTier?.tier ?? 'free';
-        const expiresAt = tier === 'free'
-          ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
-          : null; // Pro credits never expire
-        await supabase.from('earned_activations').insert({
-          user_id: user.id,
-          expires_at: expiresAt,
-          source: 'warden_report',
-        });
+        // Trigger just fired — credit has been granted server-side
         setEarnedActivation(true);
-        setReportsUntilCredit(10); // just earned one — next one in 10 more
+        setReportsUntilCredit(10);
       } else {
         const reportsIntoCurrentBlock = vCount % 10;
         setReportsUntilCredit(10 - reportsIntoCurrentBlock);

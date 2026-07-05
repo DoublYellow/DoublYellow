@@ -70,11 +70,23 @@ export default function ProfileScreen() {
       if (!user) return;
       setUserId(user.id);
 
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('username, points, avatar_url, tier, drivers_saved')
-        .eq('id', user.id)
-        .single();
+      // Parallelise independent fetches
+      const [
+        { data: profileData },
+        { data: reportData, count: reportCount_ },
+        { count: pCount },
+        { count: msgCount },
+      ] = await Promise.all([
+        supabase.from('profiles').select('username, points, avatar_url, tier, drivers_saved').eq('id', user.id).single(),
+        supabase.from('warden_reports').select('*', { count: 'exact' }).eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
+        supabase.from('warden_reports').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('photo_verified', true),
+        supabase.from('messages').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('read', false),
+      ]);
+
+      if (reportData) setReports(reportData);
+      setReportCount(reportCount_ ?? 0);
+      setPhotoCount(pCount ?? 0);
+      setUnreadCount(msgCount ?? 0);
 
       // Activation stats — period depends on tier
       const tier = profileData?.tier ?? 'free';
@@ -138,21 +150,6 @@ export default function ProfileScreen() {
         setAvatarUrl(url ? `${url}?t=${Date.now()}` : null);
       }
 
-      const { data: reportData, count } = await supabase
-        .from('warden_reports')
-        .select('*', { count: 'exact' })
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      if (reportData) setReports(reportData);
-      setReportCount(count ?? 0);
-
-      const { count: pCount } = await supabase
-        .from('warden_reports')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('photo_verified', true);
-      setPhotoCount(pCount ?? 0);
 
       // 7 Day Streak — check for at least one report on each of the last 7 calendar days
       const streakStart = new Date();
@@ -216,12 +213,6 @@ export default function ProfileScreen() {
         setLeaderboard(entries);
       }
 
-      const { count: msgCount } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
-      setUnreadCount(msgCount ?? 0);
     })();
   }, []);
 
@@ -273,7 +264,7 @@ export default function ProfileScreen() {
         });
 
       if (uploadError) {
-        console.log('UPLOAD ERROR:', JSON.stringify(uploadError));
+        Alert.alert('Upload Failed', 'Could not upload your photo. Please try again.');
         setUploadingAvatar(false);
         return;
       }
@@ -291,7 +282,7 @@ export default function ProfileScreen() {
         .eq('id', userId);
 
       if (updateError) {
-        console.log('PROFILE UPDATE ERROR:', JSON.stringify(updateError));
+        Alert.alert('Upload Failed', 'Photo uploaded but profile could not be updated. Please try again.');
         setUploadingAvatar(false);
         return;
       }

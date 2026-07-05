@@ -297,8 +297,9 @@ export default function ParkedScreen() {
     };
   }, [isActive, activeTrack]);
 
-  // Load interstitial ad and listen for events
+  // Load interstitial ad and listen for events — skipped in beta
   useEffect(() => {
+    if (BETA_MODE) return;
     const setup = async () => {
       const ad = InterstitialAd.createForAdRequest(adUnitId, {
         requestNonPersonalizedAdsOnly: true,

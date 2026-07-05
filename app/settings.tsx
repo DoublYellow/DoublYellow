@@ -14,6 +14,7 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [userTier, setUserTier] = useState<string>('free');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // Password change
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -36,6 +37,7 @@ export default function SettingsScreen() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
       if (user.email) setEmail(user.email);
 
       const { data } = await supabase
@@ -69,23 +71,26 @@ export default function SettingsScreen() {
   }, []);
 
   const saveSetting = async (updates: Partial<{ notifications: boolean; siren: boolean; default_radius: number }>) => {
+    if (!userId) return;
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); return; }
 
     const { error } = await supabase
       .from('settings')
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         notifications,
         siren,
         default_radius: defaultRadius,
         ...updates,
         updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'user_id' });
 
     if (error) {
       Alert.alert('Save Failed', 'Could not save your settings. Please try again.');
+      // Roll back local state to match DB
+      if ('notifications' in updates) setNotifications(notifications);
+      if ('siren' in updates) setSiren(siren);
+      if ('default_radius' in updates) setDefaultRadius(defaultRadius);
     }
     setSaving(false);
   };
@@ -387,9 +392,8 @@ export default function SettingsScreen() {
                   <Text style={styles.rowLabel}>Current Plan</Text>
                   <Text style={styles.rowSub}>
                     {userTier === 'unlimited' ? 'Unlimited — Full Access'
-                      : userTier === 'pro' ? 'Pro'
-                      : userTier === 'basic' ? 'Basic'
-                      : 'Free — Year 1 Beta'}
+                      : userTier === 'pro' ? 'Pro — 1 activation/day'
+                      : 'Free — 1 activation/week'}
                   </Text>
                 </View>
               </View>
