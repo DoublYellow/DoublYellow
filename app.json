@@ -26,7 +26,7 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE"
       ],
-      "package": "com.doubleyellow.DoublYellow"
+      "package": "com.DoubleYellow.DoubleYellow"
     },
     "web": {
       "output": "static",
