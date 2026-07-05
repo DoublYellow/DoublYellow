@@ -7,6 +7,7 @@ import MobileAds, { AdEventType, InterstitialAd, TestIds } from 'react-native-go
 import { Ionicons } from '@expo/vector-icons';
 import { sendLocalNotification } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+import { logEvent, logScreen } from '../lib/analytics';
 
 // ─── AdMob config ────────────────────────────────────────────────────────────
 // TODO: Replace placeholder IDs with your real AdMob ad unit IDs before release
@@ -107,6 +108,7 @@ export default function ParkedScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('Parked');
   }, [navigation]);
 
   // Load car location
@@ -488,6 +490,7 @@ export default function ParkedScreen() {
         return;
       }
     }
+    logEvent('parking_activated', { tier: userTier });
     runActivate();
   };
 
@@ -499,6 +502,7 @@ export default function ParkedScreen() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from('parked_sessions').update({ is_active: false }).eq('user_id', user.id);
+    logEvent('parking_deactivated');
     setIsActive(false);
     setSessionId(null);
     // Stop GPS watcher if active track was running

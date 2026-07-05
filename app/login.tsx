@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import { logLogin, logScreen } from '../lib/analytics';
 import HapticButton from '../components/HapticButton';
 
 export default function LoginScreen() {
@@ -16,6 +17,7 @@ export default function LoginScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('Login');
   }, [navigation]);
 
   const handleLogin = async () => {
@@ -31,6 +33,7 @@ export default function LoginScreen() {
       setError(error.message);
       return;
     }
+    await logLogin();
     router.replace('/');
   };
 

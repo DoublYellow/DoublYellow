@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { getRank, getNextRank } from '../lib/ranks';
+import { logScreen } from '../lib/analytics';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Report = {
@@ -62,6 +63,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('Profile');
   }, [navigation]);
 
   useEffect(() => {

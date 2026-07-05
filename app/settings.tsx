@@ -1,8 +1,9 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { logScreen } from '../lib/analytics';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('Settings');
   }, [navigation]);
 
   useEffect(() => {
@@ -424,6 +426,40 @@ export default function SettingsScreen() {
                 </View>
               </View>
             )}
+            <View style={styles.divider} />
+
+            {/* Delete account row */}
+            <TouchableOpacity
+              style={styles.row}
+              activeOpacity={0.7}
+              onPress={() => {
+                Alert.alert(
+                  'Delete Account',
+                  'This will send a deletion request to our team. We will permanently delete your account and all associated data within 30 days.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Send Request',
+                      style: 'destructive',
+                      onPress: () => {
+                        const subject = encodeURIComponent('Account Deletion Request');
+                        const body = encodeURIComponent(`Please delete my DoubleYellow account and all associated data.\n\nEmail: ${email}\n\nI understand this action is permanent.`);
+                        Linking.openURL('https://docs.google.com/forms/d/e/1FAIpQLSeKnoMuWjdupRaWoQlRzl9CUT5FbjxL47Qqhqynwg2QPHh_6Q/viewform');
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <View style={styles.rowLeft}>
+                <Ionicons name="trash-outline" size={22} color="#E63946" />
+                <View>
+                  <Text style={[styles.rowLabel, { color: '#E63946' }]}>Delete Account</Text>
+                  <Text style={styles.rowSub}>Permanently delete your account and data</Text>
+                </View>
+              </View>
+              <Text style={styles.rowArrow}>›</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

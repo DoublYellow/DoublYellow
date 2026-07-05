@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import { logScreen } from '../lib/analytics';
 
 const getPlanIcon = (id: string) => {
   switch (id) {
@@ -98,6 +99,7 @@ export default function PlansScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('Plans');
   }, [navigation]);
 
   useEffect(() => {

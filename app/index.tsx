@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Image, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { logScreen } from '../lib/analytics';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -16,6 +17,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('Home');
   }, [navigation]);
 
   // Refresh session state and avatar every time home screen is focused

@@ -2,6 +2,7 @@ import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { logSignUp, logScreen } from '../lib/analytics';
 import HapticButton from '../components/HapticButton';
 
 export default function SignUpScreen() {
@@ -16,6 +17,7 @@ export default function SignUpScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('SignUp');
   }, [navigation]);
 
   const handleSignUp = async () => {
@@ -71,6 +73,7 @@ export default function SignUpScreen() {
       }
     }
 
+    await logSignUp();
     setLoading(false);
     // If email confirmation is required, Supabase returns a user but no session
     if (data.session) {

@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { playAlertSent } from '../lib/sounds';
 import HapticButton from '../components/HapticButton';
+import { logEvent, logScreen } from '../lib/analytics';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CONFETTI_COLORS = ['#FFD700', '#FFD700', '#E63946', '#00C853', '#2196F3', '#FF9800', '#E91E63', '#FFFFFF', '#9C27B0', '#FFD700'];
@@ -86,6 +87,7 @@ export default function WardenScreen() {
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
+    logScreen('WardenReport');
   }, [navigation]);
 
   useEffect(() => {
@@ -220,6 +222,7 @@ export default function WardenScreen() {
     setNewBadges(earned);
     setLoading(false);
     setSubmitted(true);
+    logEvent('warden_report_submitted', { photo_verified: photoVerified, points });
     playAlertSent();
 
     // Fire confetti — burst from sides
