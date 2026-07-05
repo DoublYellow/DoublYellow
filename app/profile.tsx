@@ -365,7 +365,9 @@ export default function ProfileScreen() {
           <Text style={styles.backText}>← BACK</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>PROFILE</Text>
-        <View style={{ width: 60 }} />
+        <TouchableOpacity onPress={() => router.push('/settings')} activeOpacity={0.7} style={styles.settingsBtn}>
+          <Ionicons name="settings-outline" size={22} color="#666666" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -711,6 +713,7 @@ const styles = StyleSheet.create({
   },
   backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   headerTitle: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
+  settingsBtn: { width: 60, alignItems: 'flex-end' },
   scroll: { flex: 1 },
   heroCard: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 8 },
   avatarWrapper: { marginBottom: 8, position: 'relative' },

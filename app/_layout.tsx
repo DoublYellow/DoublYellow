@@ -1,4 +1,5 @@
 import { Session } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,6 +12,7 @@ import { supabase } from '../lib/supabase';
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [isRecovery, setIsRecovery] = useState(false);
   const router = useRouter();
   const segments = useSegments();
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
@@ -20,6 +22,31 @@ export default function RootLayout() {
     if (Platform.OS === 'android') {
       MobileAds().initialize().catch(() => {});
     }
+  }, []);
+
+  // Handle deep links for password reset (doublyellow://reset-password#access_token=...&type=recovery)
+  useEffect(() => {
+    const handleUrl = async (url: string) => {
+      // Supabase sends tokens in either fragment (#) or query (?) form
+      const rawParams = url.includes('#') ? url.split('#')[1] : url.split('?')[1];
+      if (!rawParams) return;
+      const params: Record<string, string> = {};
+      rawParams.split('&').forEach(pair => {
+        const [k, v] = pair.split('=');
+        if (k && v) params[k] = decodeURIComponent(v);
+      });
+      if (params.type === 'recovery' && params.access_token) {
+        await supabase.auth.setSession({
+          access_token: params.access_token,
+          refresh_token: params.refresh_token ?? '',
+        });
+        // onAuthStateChange will fire PASSWORD_RECOVERY which navigates to /reset-password
+      }
+    };
+
+    Linking.getInitialURL().then(url => { if (url) handleUrl(url); });
+    const linkingSub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => linkingSub.remove();
   }, []);
 
   useEffect(() => {
@@ -34,8 +61,16 @@ export default function RootLayout() {
         setInitialized(true);
       });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true);
+        router.replace('/reset-password');
+      }
+      if (event === 'USER_UPDATED') {
+        // Password was successfully changed — clear recovery state
+        setIsRecovery(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -45,16 +80,20 @@ export default function RootLayout() {
     if (!initialized) return;
     const inAuthGroup = segments[0] === 'welcome' || segments[0] === 'login' || segments[0] === 'signup' || segments[0] === 'forgot-password';
     const onVerifyScreen = segments[0] === 'verify-email';
+    const onResetScreen = segments[0] === 'reset-password';
     const emailVerified = !!session?.user?.email_confirmed_at;
+
+    // Never redirect away from the password reset screen during recovery flow
+    if (onResetScreen) return;
 
     if (!session && !inAuthGroup) {
       router.replace('/welcome');
     } else if (session && !emailVerified && !onVerifyScreen) {
       router.replace('/verify-email');
-    } else if (session && emailVerified && (inAuthGroup || onVerifyScreen)) {
+    } else if (session && emailVerified && (inAuthGroup || onVerifyScreen) && !isRecovery) {
       router.replace('/');
     }
-  }, [session, initialized, segments]);
+  }, [session, initialized, segments, isRecovery]);
 
   useEffect(() => {
   if (session) {

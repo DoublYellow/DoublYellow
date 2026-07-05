@@ -18,10 +18,14 @@ export default function SettingsScreen() {
 
   // Password change
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Email change
   const [isChangingEmail, setIsChangingEmail] = useState(false);
@@ -112,8 +116,12 @@ export default function SettingsScreen() {
 
   const handleSavePassword = async () => {
     setPasswordError('');
+    if (!currentPassword) {
+      setPasswordError('Please enter your current password.');
+      return;
+    }
     if (newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters.');
+      setPasswordError('New password must be at least 8 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -121,13 +129,24 @@ export default function SettingsScreen() {
       return;
     }
     setSavingPassword(true);
+    // Verify current password first
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+    if (authError) {
+      setPasswordError('Current password is incorrect.');
+      setSavingPassword(false);
+      return;
+    }
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       setPasswordError('Could not update password. Try again.');
     } else {
       setIsChangingPassword(false);
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
       Alert.alert('Password Updated', 'Your password has been changed successfully.');
     }
     setSavingPassword(false);
@@ -328,7 +347,7 @@ export default function SettingsScreen() {
             <TouchableOpacity
               style={styles.row}
               activeOpacity={0.7}
-              onPress={() => { setIsChangingPassword(!isChangingPassword); setPasswordError(''); setNewPassword(''); setConfirmPassword(''); }}
+              onPress={() => { setIsChangingPassword(!isChangingPassword); setPasswordError(''); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setShowCurrentPassword(false); setShowNewPassword(false); setShowConfirmPassword(false); }}
             >
               <View style={styles.rowLeft}>
                 <Ionicons name="key-outline" size={22} color="#FFD700" />
@@ -342,28 +361,54 @@ export default function SettingsScreen() {
 
             {isChangingPassword && (
               <View style={styles.editPanel}>
-                <TextInput
-                  style={styles.editInput}
-                  value={newPassword}
-                  onChangeText={(t) => { setNewPassword(t); setPasswordError(''); }}
-                  placeholder="new password"
-                  placeholderTextColor="#555555"
-                  secureTextEntry
-                  autoFocus
-                />
-                <TextInput
-                  style={styles.editInput}
-                  value={confirmPassword}
-                  onChangeText={(t) => { setConfirmPassword(t); setPasswordError(''); }}
-                  placeholder="confirm new password"
-                  placeholderTextColor="#555555"
-                  secureTextEntry
-                />
+                {/* Current password */}
+                <View style={styles.pwRow}>
+                  <TextInput
+                    style={styles.pwInput}
+                    value={currentPassword}
+                    onChangeText={(t) => { setCurrentPassword(t); setPasswordError(''); }}
+                    placeholder="current password"
+                    placeholderTextColor="#555555"
+                    secureTextEntry={!showCurrentPassword}
+                    autoFocus
+                  />
+                  <TouchableOpacity style={styles.eyeButton} onPress={() => setShowCurrentPassword(v => !v)} activeOpacity={0.7}>
+                    <Ionicons name={showCurrentPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#555555" />
+                  </TouchableOpacity>
+                </View>
+                {/* New password */}
+                <View style={styles.pwRow}>
+                  <TextInput
+                    style={styles.pwInput}
+                    value={newPassword}
+                    onChangeText={(t) => { setNewPassword(t); setPasswordError(''); }}
+                    placeholder="new password"
+                    placeholderTextColor="#555555"
+                    secureTextEntry={!showNewPassword}
+                  />
+                  <TouchableOpacity style={styles.eyeButton} onPress={() => setShowNewPassword(v => !v)} activeOpacity={0.7}>
+                    <Ionicons name={showNewPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#555555" />
+                  </TouchableOpacity>
+                </View>
+                {/* Confirm new password */}
+                <View style={styles.pwRow}>
+                  <TextInput
+                    style={styles.pwInput}
+                    value={confirmPassword}
+                    onChangeText={(t) => { setConfirmPassword(t); setPasswordError(''); }}
+                    placeholder="confirm new password"
+                    placeholderTextColor="#555555"
+                    secureTextEntry={!showConfirmPassword}
+                  />
+                  <TouchableOpacity style={styles.eyeButton} onPress={() => setShowConfirmPassword(v => !v)} activeOpacity={0.7}>
+                    <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#555555" />
+                  </TouchableOpacity>
+                </View>
                 {passwordError ? <Text style={styles.editError}>{passwordError}</Text> : null}
                 <View style={styles.editButtons}>
                   <TouchableOpacity
                     style={styles.editCancelBtn}
-                    onPress={() => { setIsChangingPassword(false); setPasswordError(''); setNewPassword(''); setConfirmPassword(''); }}
+                    onPress={() => { setIsChangingPassword(false); setPasswordError(''); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setShowCurrentPassword(false); setShowNewPassword(false); setShowConfirmPassword(false); }}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.editCancelText}>CANCEL</Text>
@@ -532,6 +577,26 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   editError: { fontSize: 11, color: '#E63946', letterSpacing: 1 },
+  pwRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D0D0D',
+    borderWidth: 1,
+    borderColor: '#444444',
+    borderRadius: 8,
+  },
+  pwInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  eyeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
   editHint: { fontSize: 11, color: '#444444', letterSpacing: 0.5, lineHeight: 16 },
   editButtons: { flexDirection: 'row', gap: 10, marginTop: 4 },
   editCancelBtn: {
