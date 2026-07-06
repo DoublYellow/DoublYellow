@@ -7,6 +7,28 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:667249228133:android:9c04be8cfee7869683498c",
+        "android_client_info": {
+          "package_name": "com.DoubleYellow.DoubleYellow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYw69aVLYGnqMesKf8JIBTwtln1CvUzUQ"
+        },
+        {
+          "current_key": "AIzaSyByG9MCVSmGrp5uLy6Xbv_LlodyoGUVSYk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:667249228133:android:0d1be64a40c95ef183498c",
         "android_client_info": {
           "package_name": "com.doubleyellow.DoublYellow"
@@ -14,6 +36,9 @@
       },
       "oauth_client": [],
       "api_key": [
+        {
+          "current_key": "AIzaSyCYw69aVLYGnqMesKf8JIBTwtln1CvUzUQ"
+        },
         {
           "current_key": "AIzaSyByG9MCVSmGrp5uLy6Xbv_LlodyoGUVSYk"
         }
