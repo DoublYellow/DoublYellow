@@ -178,17 +178,17 @@ export default function ProfileScreen() {
       }
       setHasStreak(streak);
 
-      // Get true global ranking
+      // Get true global ranking — use public_profiles (sanitised view, no push tokens)
       const { count: aboveCount } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('*', { count: 'exact', head: true })
         .gt('points', profileData?.points ?? 0);
       const trueRank = (aboveCount ?? 0) + 1;
       setRanking(trueRank);
 
-      // Fetch top 3 for leaderboard
+      // Fetch top 3 for leaderboard — use public_profiles
       const { data: top3 } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('username, points, id')
         .order('points', { ascending: false })
         .limit(3);

@@ -170,7 +170,7 @@ export default function CelebrateScreen() {
       if (validIds.length === 0) return;
 
       const { data: profiles } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, username')
         .in('id', validIds);
 
