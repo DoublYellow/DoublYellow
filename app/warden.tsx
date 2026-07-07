@@ -162,18 +162,22 @@ export default function WardenScreen() {
 
     const points = photoVerified ? 100 : 50;
 
-    await supabase.from('warden_reports').insert({
+    const { data: reportData } = await supabase.from('warden_reports').insert({
       user_id: user.id,
       latitude: pinCoord.latitude,
       longitude: pinCoord.longitude,
       photo_verified: photoVerified,
       points_awarded: points,
-    });
+    }).select('id').single();
 
-    await supabase.rpc('increment_points', {
-      user_id: user.id,
-      amount: points,
-    });
+    // Award points via Edge Function (server-side validation)
+    if (reportData?.id) {
+      const { data: { session } } = await supabase.auth.getSession();
+      await supabase.functions.invoke('award-points', {
+        body: { report_id: reportData.id },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+    }
 
     const earned: string[] = [];
 

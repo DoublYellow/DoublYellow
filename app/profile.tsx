@@ -235,15 +235,16 @@ export default function ProfileScreen() {
     }
     if (!userId) return;
     setSavingUsername(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ username: trimmed })
-      .eq('id', userId);
-    if (!error) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await supabase.functions.invoke('update-profile', {
+      body: { username: trimmed },
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    if (res.error || res.data?.error) {
+      setUsernameError(res.data?.error ?? 'Could not save. Try again.');
+    } else {
       setProfile((prev) => prev ? { ...prev, username: trimmed } : prev);
       setIsEditingUsername(false);
-    } else {
-      setUsernameError('Could not save. Try again.');
     }
     setSavingUsername(false);
   };
@@ -278,12 +279,13 @@ export default function ProfileScreen() {
       const cleanUrl = urlData.publicUrl;
       const displayUrl = `${cleanUrl}?t=${Date.now()}`;
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: cleanUrl })
-        .eq('id', userId);
+      const { data: { session } } = await supabase.auth.getSession();
+      const updateRes = await supabase.functions.invoke('update-profile', {
+        body: { avatar_url: cleanUrl },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
 
-      if (updateError) {
+      if (updateRes.error || updateRes.data?.error) {
         Alert.alert('Upload Failed', 'Photo uploaded but profile could not be updated. Please try again.');
         setUploadingAvatar(false);
         return;
