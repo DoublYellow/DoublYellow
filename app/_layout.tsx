@@ -96,17 +96,17 @@ export default function RootLayout() {
   }, [session, initialized, segments, isRecovery]);
 
   useEffect(() => {
-  if (session) {
-    registerForPushNotifications().then(async (token) => {
-      if (token) {
-        await supabase
-          .from('profiles')
-          .update({ push_token: token })
-          .eq('id', session.user.id);
-      }
-    }).catch(() => {});
-  }
-}, [session]);
+    if (session) {
+      registerForPushNotifications().then(async (token) => {
+        if (token) {
+          await supabase.functions.invoke('update-push-token', {
+            body: { push_token: token },
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [session]);
 
   // Foreground notification listener — triggers siren if user has it enabled
   useEffect(() => {
