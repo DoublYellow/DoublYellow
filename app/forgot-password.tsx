@@ -1,5 +1,5 @@
 import { useNavigation, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import HapticButton from '../components/HapticButton';
@@ -9,30 +9,53 @@ export default function ForgotPasswordScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
+  const codeInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  const handleReset = async () => {
+  const handleSendCode = async () => {
     if (!email.trim()) {
       setError('Please enter your email address.');
       return;
     }
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'doublyellow://reset-password',
-    });
+    // No redirectTo — we use the OTP code flow instead of a deep link
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
     setLoading(false);
     if (error) {
       setError(error.message);
       return;
     }
-    setSent(true);
+    setStep('code');
+    setTimeout(() => codeInputRef.current?.focus(), 300);
+  };
+
+  const handleVerifyCode = async () => {
+    const trimmed = code.trim();
+    if (trimmed.length < 8) {
+      setError('Please enter the full code from your email.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: trimmed,
+      type: 'recovery',
+    });
+    setLoading(false);
+    if (error) {
+      setError('Invalid or expired code. Please check your email and try again.');
+      return;
+    }
+    // onAuthStateChange fires PASSWORD_RECOVERY → _layout.tsx navigates to /reset-password
   };
 
   return (
@@ -47,38 +70,17 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.titleWrapper}>
           <Text style={styles.title}>RESET{'\n'}PASSWORD</Text>
-          {!sent && (
-            <Text style={styles.sub}>Enter your email and we'll send you a reset link.</Text>
-          )}
         </View>
 
-        {sent ? (
-          <View style={styles.successBox}>
-            <Ionicons name="mail-outline" size={56} color="#FFD700" />
-            <Text style={styles.successTitle}>CHECK YOUR EMAIL</Text>
-            <Text style={styles.successBody}>
-              We've sent a password reset link to{'\n'}
-              <Text style={styles.successEmail}>{email}</Text>
-            </Text>
-            <Text style={styles.successHint}>
-              Click the link in the email to set a new password. Check your spam folder if you don't see it.
-            </Text>
-            <HapticButton
-              style={styles.submitButton}
-              onPress={() => router.replace('/login')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.submitText}>BACK TO LOG IN</Text>
-            </HapticButton>
-          </View>
-        ) : (
+        {step === 'email' ? (
           <View style={styles.form}>
+            <Text style={styles.sub}>Enter your email and we'll send you a reset code.</Text>
             <View style={styles.inputWrapper}>
               <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
               <TextInput
                 style={styles.input}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(t) => { setEmail(t); setError(''); }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -91,11 +93,57 @@ export default function ForgotPasswordScreen() {
 
             <HapticButton
               style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-              onPress={handleReset}
+              onPress={handleSendCode}
               disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.submitText}>{loading ? 'SENDING...' : 'SEND RESET LINK'}</Text>
+              <Text style={styles.submitText}>{loading ? 'SENDING...' : 'SEND RESET CODE'}</Text>
+            </HapticButton>
+          </View>
+        ) : (
+          <View style={styles.form}>
+            <View style={styles.sentBox}>
+              <Ionicons name="mail-outline" size={36} color="#FFD700" />
+              <Text style={styles.sentTitle}>CHECK YOUR EMAIL</Text>
+              <Text style={styles.sentBody}>
+                We sent a reset code to{'\n'}
+                <Text style={styles.sentEmail}>{email}</Text>
+              </Text>
+              <Text style={styles.sentHint}>Check your spam folder if you don't see it.</Text>
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputLabel}>ENTER CODE</Text>
+              <TextInput
+                ref={codeInputRef}
+                style={[styles.input, styles.codeInput]}
+                value={code}
+                onChangeText={(t) => { setCode(t); setError(''); }}
+                keyboardType="default"
+                autoCapitalize="characters"
+                maxLength={8}
+                placeholderTextColor="#444444"
+                placeholder="••••••••"
+              />
+            </View>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <HapticButton
+              style={[styles.submitButton, (loading || code.trim().length < 6) && styles.submitButtonDisabled]}
+              onPress={handleVerifyCode}
+              disabled={loading || code.trim().length < 8}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.submitText}>{loading ? 'CHECKING...' : 'VERIFY CODE'}</Text>
+            </HapticButton>
+
+            <HapticButton
+              style={styles.resendButton}
+              onPress={() => { setStep('email'); setCode(''); setError(''); }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.resendText}>Didn't get it? Go back and resend</Text>
             </HapticButton>
           </View>
         )}
@@ -116,6 +164,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginBottom: 32,
+    paddingVertical: 10,
+    paddingRight: 24,
   },
   backText: {
     fontSize: 12,
@@ -124,8 +174,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   titleWrapper: {
-    marginBottom: 48,
-    gap: 12,
+    marginBottom: 32,
   },
   title: {
     fontSize: 40,
@@ -139,6 +188,7 @@ const styles = StyleSheet.create({
     color: '#666666',
     letterSpacing: 0.5,
     lineHeight: 22,
+    marginBottom: 8,
   },
   form: {
     gap: 20,
@@ -162,20 +212,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
   },
+  codeInput: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 12,
+    textAlign: 'center',
+  },
   errorText: {
     fontSize: 13,
     color: '#E63946',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   submitButton: {
     backgroundColor: '#FFD700',
     paddingVertical: 18,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 8,
   },
   submitButtonDisabled: {
-    backgroundColor: '#888800',
+    backgroundColor: '#333300',
   },
   submitText: {
     fontSize: 16,
@@ -183,43 +238,44 @@ const styles = StyleSheet.create({
     color: '#0D0D0D',
     letterSpacing: 4,
   },
-  successBox: {
+  sentBox: {
     alignItems: 'center',
-    gap: 16,
-    paddingTop: 8,
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333333',
   },
-  successIcon: {
-    marginBottom: 8,
-  },
-  successTitle: {
-    fontSize: 18,
+  sentTitle: {
+    fontSize: 16,
     fontWeight: '900',
     color: '#FFD700',
-    letterSpacing: 4,
+    letterSpacing: 3,
   },
-  successBody: {
-    fontSize: 15,
+  sentBody: {
+    fontSize: 14,
     color: '#AAAAAA',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
   },
-  successEmail: {
+  sentEmail: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  successHint: {
-    fontSize: 13,
+  sentHint: {
+    fontSize: 11,
     color: '#555555',
     textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 4,
   },
-  submitButton_success: {
-    backgroundColor: '#FFD700',
-    paddingVertical: 18,
-    borderRadius: 10,
+  resendButton: {
     alignItems: 'center',
-    marginTop: 24,
-    width: '100%',
+    paddingVertical: 8,
+  },
+  resendText: {
+    fontSize: 12,
+    color: '#444444',
+    letterSpacing: 0.5,
   },
 });

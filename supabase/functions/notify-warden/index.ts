@@ -6,15 +6,14 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const FCM_PROJECT_ID = 'doublyellow-ac481';
 const FCM_CLIENT_EMAIL = 'firebase-adminsdk-fbsvc@doublyellow-ac481.iam.gserviceaccount.com';
-// FCM_PRIVATE_KEY is stored as a Supabase Edge Function secret — never hardcode it here
 const FCM_PRIVATE_KEY = Deno.env.get('FCM_PRIVATE_KEY')!;
 
 async function getAccessToken(): Promise<string> {
   const pemContents = FCM_PRIVATE_KEY
     .replace('-----BEGIN PRIVATE KEY-----', '')
     .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\\n/g, '')   // handle literal \n from env var storage
-    .replace(/\s/g, '');   // handle actual newlines
+    .replace(/\\n/g, '')
+    .replace(/\s/g, '');
 
   const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
 
@@ -67,10 +66,13 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Only notify sessions created within the last 2 hours
+    const sessionCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const { data: sessions, error: sessionsError } = await supabase
       .from('parked_sessions')
       .select('user_id, latitude, longitude, radius_metres')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .gte('created_at', sessionCutoff);
 
     console.log('Active sessions:', JSON.stringify(sessions), 'Error:', JSON.stringify(sessionsError));
 
@@ -80,7 +82,25 @@ Deno.serve(async (req) => {
 
     const accessToken = await getAccessToken();
 
+    // Look up reporter's tier to determine raffle tickets per save
+    let ticketsPerSave = 1;
+    if (report.user_id) {
+      const { data: reporterProfile } = await supabase
+        .from('profiles')
+        .select('tier')
+        .eq('id', report.user_id)
+        .single();
+      if (reporterProfile?.tier === 'unlimited') ticketsPerSave = 3;
+      else if (reporterProfile?.tier === 'pro') ticketsPerSave = 2;
+    }
+
+    // Count how many drivers we successfully alert — each one earns the reporter raffle tickets
+    let saveCount = 0;
+
     for (const session of sessions) {
+      // Don't alert the reporter themselves if they somehow have an active session
+      if (session.user_id === report.user_id) continue;
+
       const distance = getDistanceMetres(
         session.latitude,
         session.longitude,
@@ -130,9 +150,27 @@ Deno.serve(async (req) => {
 
       const fcmData = await fcmRes.json();
       console.log('FCM response:', JSON.stringify(fcmData));
+
+      // Count as a save if FCM accepted the message
+      if (fcmRes.status === 200 && !fcmData.error) {
+        saveCount++;
+      }
     }
 
-    return new Response(JSON.stringify({ message: 'Notifications sent' }), { status: 200 });
+    // Credit raffle tickets to the reporter for each driver they saved (multiplied by tier)
+    if (saveCount > 0 && report.user_id) {
+      const { error: ticketError } = await supabase.rpc('increment_raffle_tickets', {
+        p_user_id: report.user_id,
+        p_count: saveCount * ticketsPerSave,
+      });
+      if (ticketError) {
+        console.log('Raffle ticket error:', JSON.stringify(ticketError));
+      } else {
+        console.log(`Credited ${saveCount} raffle ticket(s) to reporter ${report.user_id}`);
+      }
+    }
+
+    return new Response(JSON.stringify({ message: 'Notifications sent', saves: saveCount }), { status: 200 });
   } catch (e) {
     console.log('ERROR:', String(e));
     return new Response(JSON.stringify({ error: String(e) }), { status: 500 });

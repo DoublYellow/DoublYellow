@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Double Yellow — Community Parking Protection</title>
+  <meta name="description" content="Get alerted the moment a parking warden is spotted near your car. One fine avoided and you're already ahead." />
+  <meta property="og:title" content="Double Yellow — Community Parking Protection" />
+  <meta property="og:description" content="Get alerted the moment a parking warden is spotted near your car." />
+  <meta property="og:url" content="https://doubleyellow.app" />
+  <link rel="canonical" href="https://doubleyellow.app" />
+  <meta name="theme-color" content="#0D0D0D" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --yellow: #FFD700;
+      --red: #E63946;
+      --bg: #0D0D0D;
+      --bg2: #111111;
+      --bg3: #1A1A1A;
+      --border: #222222;
+      --text: #FFFFFF;
+      --muted: #666666;
+      --subtle: #333333;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 32px;
+      background: rgba(13,13,13,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--yellow);
+      text-decoration: none;
+    }
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 120px 32px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .dy-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 0;
+    }
+    .dy-line {
+      height: 18px;
+      background: var(--yellow);
+      width: 100%;
+    }
+    .hero-inner {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 64px 0;
+      width: 100%;
+    }
+    .hero-title {
+      font-size: clamp(56px, 10vw, 96px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      line-height: 1.0;
+      color: var(--text);
+      margin-bottom: 24px;
+    }
+    .hero-title span { color: var(--yellow); }
+    .hero-tagline {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      line-height: 1.6;
+      margin-bottom: 48px;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--yellow);
+      color: #0D0D0D;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      padding: 18px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--subtle);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 18px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--text); }
+    .btn-coming-soon {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      padding: 18px 0;
+      align-self: center;
+    }
+
+    /* ── HOW IT WORKS ── */
+    section {
+      padding: 96px 32px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: var(--text);
+      margin-bottom: 56px;
+      line-height: 1.1;
+    }
+    .section-title span { color: var(--yellow); }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+    }
+    .step {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .step-num {
+      font-size: 64px;
+      font-weight: 900;
+      color: var(--border);
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+    .step-title {
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .step-body {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .step-accent {
+      position: absolute;
+      top: 0; right: 0;
+      width: 60px; height: 60px;
+      border-top-right-radius: 16px;
+      border-bottom-left-radius: 50px;
+      background: rgba(255,215,0,0.06);
+    }
+
+    /* ── FEATURES ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .feature {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+    }
+    .feature-icon {
+      font-size: 28px;
+      margin-bottom: 14px;
+    }
+    .feature-title {
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .feature-body {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ── STAT STRIP ── */
+    .stat-strip {
+      background: var(--yellow);
+      padding: 48px 32px;
+      text-align: center;
+    }
+    .stat-strip-inner {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .stat-strip-title {
+      font-size: clamp(18px, 3vw, 26px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #0D0D0D;
+      line-height: 1.4;
+    }
+    .stat-strip-sub {
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(0,0,0,0.5);
+      letter-spacing: 1px;
+      margin-top: 8px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 32px;
+    }
+    .footer-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer-logo {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--yellow);
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+    .footer-links a {
+      font-size: 11px;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 1px;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy {
+      font-size: 11px;
+      color: var(--subtle);
+      letter-spacing: 0.5px;
+      width: 100%;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    /* ── MOBILE ── */
+    @media (max-width: 600px) {
+      nav { padding: 14px 20px; }
+      .nav-links { display: none; }
+      .hero { padding: 100px 20px 60px; }
+      .hero-inner { padding: 48px 0; }
+      section { padding: 64px 20px; }
+      .hero-buttons { flex-direction: column; align-items: flex-start; }
+      .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+      footer { padding: 32px 20px; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-logo" href="/">DOUBLEYELLOW</a>
+    <ul class="nav-links">
+      <li><a href="#how-it-works">HOW IT WORKS</a></li>
+      <li><a href="#features">FEATURES</a></li>
+      <li><a href="privacy.html">PRIVACY</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="dy-lines">
+      <div class="dy-line"></div>
+      <div class="dy-line"></div>
+    </div>
+    <div class="hero-inner">
+      <h1 class="hero-title">DOUBLE<br><span>YELLOW</span></h1>
+      <p class="hero-tagline">
+        A community saving money —<br>one parking fine at a time.
+      </p>
+      <div class="hero-buttons">
+        <a class="btn-primary" href="https://play.google.com/store/apps/details?id=com.DoubleYellow.DoubleYellow" target="_blank" rel="noopener">
+          ▶ &nbsp;GET IT ON GOOGLE PLAY
+        </a>
+        <span class="btn-coming-soon">IOS — COMING SOON</span>
+      </div>
+    </div>
+    <div class="dy-lines">
+      <div class="dy-line"></div>
+      <div class="dy-line"></div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works">
+    <p class="section-label">HOW IT WORKS</p>
+    <h2 class="section-title">THREE TAPS.<br><span>COMMUNITY PROTECTED.</span></h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-accent"></div>
+        <div class="step-num">01</div>
+        <div class="step-title">PARK &amp; ACTIVATE</div>
+        <p class="step-body">Tap "I've Parked" when you leave your car. We set a watch radius — 50m to 500m — around your spot.</p>
+      </div>
+      <div class="step">
+        <div class="step-accent"></div>
+        <div class="step-num">02</div>
+        <div class="step-title">COMMUNITY WATCHES</div>
+        <p class="step-body">Other Double Yellow users on the street can report wardens with a single tap — and earn points for doing it.</p>
+      </div>
+      <div class="step">
+        <div class="step-accent"></div>
+        <div class="step-num">03</div>
+        <div class="step-title">YOU GET ALERTED</div>
+        <p class="step-body">The moment a warden is spotted near your car, your phone alerts you instantly — giving you time to act.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- STAT STRIP -->
+  <div class="stat-strip">
+    <div class="stat-strip-inner">
+      <p class="stat-strip-title">A parking fine costs up to £160.<br>Avoid just one and Double Yellow has already paid for itself.</p>
+      <p class="stat-strip-sub">COMMUNITY PROTECTION · WORTH IT FROM DAY ONE</p>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <p class="section-label">FEATURES</p>
+    <h2 class="section-title">EVERYTHING YOU NEED<br><span>TO STAY PROTECTED.</span></h2>
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-icon">🚨</div>
+        <div class="feature-title">INSTANT ALERTS</div>
+        <p class="feature-body">Real-time push notifications the moment a warden is spotted within your chosen radius.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📍</div>
+        <div class="feature-title">CUSTOM RADIUS</div>
+        <p class="feature-body">Set your watch zone from 50m to 500m. Only get alerts that matter to you.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⭐</div>
+        <div class="feature-title">POINTS &amp; RANKS</div>
+        <p class="feature-body">Earn points every time you report a warden. Climb from Tipster to Lookout Legend.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📷</div>
+        <div class="feature-title">PHOTO VERIFICATION</div>
+        <p class="feature-body">Add a photo to your report and earn double points — while giving the community greater confidence.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⏱</div>
+        <div class="feature-title">TICKET TIMER</div>
+        <p class="feature-body">Set a reminder for when your ticket expires. Get a notification 10 minutes before you need to move.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🏆</div>
+        <div class="feature-title">LEADERBOARD</div>
+        <p class="feature-body">See who's saving the most drivers in your area. Community spirit, powered by competition.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <span class="footer-logo">DOUBLEYELLOW</span>
+      <ul class="footer-links">
+        <li><a href="privacy.html">Privacy Policy</a></li>
+        <li><a href="mailto:doublyellowapp@gmail.com">Support</a></li>
+      </ul>
+    </div>
+    <p class="footer-copy">© 2026 Double Yellow. All rights reserved.</p>
+  </footer>
+
+</body>
+</html>

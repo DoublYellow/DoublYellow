@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Session } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
@@ -5,9 +6,14 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import MobileAds from 'react-native-google-mobile-ads';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Platform } from 'react-native';
 import { registerForPushNotifications } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+
+// RevenueCat API keys — replace with your real keys from app.revenuecat.com
+const RC_API_KEY_ANDROID = 'YOUR_REVENUECAT_ANDROID_API_KEY';
+const RC_API_KEY_IOS = 'YOUR_REVENUECAT_IOS_API_KEY';
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -22,6 +28,14 @@ export default function RootLayout() {
     if (Platform.OS === 'android') {
       MobileAds().initialize().catch(() => {});
     }
+  }, []);
+
+  // Initialise RevenueCat
+  useEffect(() => {
+    const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
+    if (apiKey.startsWith('YOUR_')) return; // not configured yet
+    Purchases.setLogLevel(LOG_LEVEL.WARN);
+    Purchases.configure({ apiKey });
   }, []);
 
   // Handle deep links for password reset (doublyellow://reset-password#access_token=...&type=recovery)
@@ -61,8 +75,48 @@ export default function RootLayout() {
         setInitialized(true);
       });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        // Identify the user in RevenueCat so subscription state is tied to their account
+        try {
+          const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
+          if (!apiKey.startsWith('YOUR_')) {
+            await Purchases.logIn(session.user.id);
+          }
+        } catch (_) {}
+
+        // Ensure a profile row exists. This is the safety net for the case
+        // where email confirmation is required and the upsert in signup.tsx
+        // ran without an auth session (RLS would have blocked it).
+        try {
+          const { data: existing } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', session.user.id)
+            .single();
+
+          if (!existing) {
+            const pendingUsername = await AsyncStorage.getItem('pending_username');
+            await supabase.from('profiles').upsert(
+              { id: session.user.id, username: pendingUsername ?? null, points: 0, tier: 'unlimited' },
+              { onConflict: 'id' }
+            );
+            if (pendingUsername) await AsyncStorage.removeItem('pending_username');
+          }
+        } catch (_) {
+          // Non-fatal — profile screen will handle a missing profile gracefully
+        }
+      }
+
+      if (event === 'SIGNED_OUT') {
+        try {
+          const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
+          if (!apiKey.startsWith('YOUR_')) await Purchases.logOut();
+        } catch (_) {}
+      }
+
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true);
         router.replace('/reset-password');

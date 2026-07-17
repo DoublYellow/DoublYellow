@@ -1,6 +1,7 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { logLogin, logScreen } from '../lib/analytics';
@@ -9,6 +10,7 @@ import HapticButton from '../components/HapticButton';
 export default function LoginScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -107,7 +109,7 @@ export default function LoginScreen() {
           </HapticButton>
         </View>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: 24 + insets.bottom }]}>
           <Text style={styles.footerText}>Don't have an account? </Text>
           <HapticButton onPress={() => router.replace('/signup')} activeOpacity={0.7}>
             <Text style={styles.footerLink}>SIGN UP</Text>

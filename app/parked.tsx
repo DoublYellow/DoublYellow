@@ -1,8 +1,10 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Animated, BackHandler, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MobileAds, { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
 import { Ionicons } from '@expo/vector-icons';
 import { sendLocalNotification } from '../lib/notifications';
@@ -72,6 +74,7 @@ function formatMinutesAgo(mins: number): string {
 export default function ParkedScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { lat, lng, deactivate: autoDeactivateParam } = useLocalSearchParams<{ lat: string; lng: string; deactivate: string }>();
   const autoDeactivate = autoDeactivateParam === '1';
   const [selectedRadius, setSelectedRadius] = useState(DEFAULT_RADIUS);
@@ -110,6 +113,16 @@ export default function ParkedScreen() {
     navigation.setOptions({ headerShown: false });
     logScreen('Parked');
   }, [navigation]);
+
+  // Intercept Android hardware back button — always go home, never stack-pop
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.replace('/');
+      return true; // prevent default back behaviour
+    });
+    return () => sub.remove();
+  }, [router]);
 
   // Load car location
   useEffect(() => {
@@ -177,7 +190,7 @@ export default function ParkedScreen() {
       // Check for existing active session
       const { data } = await supabase
         .from('parked_sessions')
-        .select('id, radius_metres')
+        .select('id, radius_metres, created_at, latitude, longitude')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .single();
@@ -187,6 +200,10 @@ export default function ParkedScreen() {
         setIsActive(true);
         const label = `${data.radius_metres}m`;
         if (RADII.includes(label)) setSelectedRadius(label);
+        // Restore car location to where it was when the session was created
+        const sessionLocation = { latitude: data.latitude, longitude: data.longitude };
+        setCarLocation(sessionLocation);
+        liveLocationRef.current = sessionLocation;
       }
 
       setLoading(false);
@@ -270,6 +287,20 @@ export default function ParkedScreen() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [isActive, selectedRadius]);
+
+  // When an Unlimited user manually updates their car location while active,
+  // sync the new coordinates to the DB so notify-warden uses the right position.
+  useEffect(() => {
+    if (!isActive || !sessionId || userTier !== 'unlimited' || activeTrack) return;
+    if (!carLocation) return;
+    supabase
+      .from('parked_sessions')
+      .update({ latitude: carLocation.latitude, longitude: carLocation.longitude })
+      .eq('id', sessionId)
+      .then(() => {
+        liveLocationRef.current = carLocation;
+      });
+  }, [carLocation, isActive, sessionId, userTier, activeTrack]);
 
   // Active Track GPS watcher — streams live position into liveLocationRef while active
   useEffect(() => {
@@ -370,11 +401,13 @@ export default function ParkedScreen() {
       content: {
         title: '⏱ TICKET EXPIRING SOON',
         body: `Your parking ticket runs out in 10 minutes! Move your car or pay now.`,
-        sound: true,
+        sound: 'default',
+        ...(Platform.OS === 'android' ? { channelId: 'warden-alerts' } : {}),
       },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secondsUntilWarning },
     });
     setTimerNotificationId(id);
+    await AsyncStorage.setItem('ticket_timer_expires', expiresAt.toISOString());
     setShowTimerModal(false);
   };
 
@@ -383,6 +416,7 @@ export default function ParkedScreen() {
       await Notifications.cancelScheduledNotificationAsync(timerNotificationId);
       setTimerNotificationId(null);
     }
+    await AsyncStorage.removeItem('ticket_timer_expires');
     setTicketExpiresAt(null);
     setShowTimerModal(false);
   };
@@ -514,6 +548,7 @@ export default function ParkedScreen() {
       await Notifications.cancelScheduledNotificationAsync(timerNotificationId);
       setTimerNotificationId(null);
     }
+    await AsyncStorage.removeItem('ticket_timer_expires');
     setTicketExpiresAt(null);
   };
 
@@ -648,7 +683,7 @@ export default function ParkedScreen() {
             <Text style={[styles.alertTitle, alertIsRecent && styles.alertTitleRecent]}>
               {alertIsRecent ? 'RECENT SIGHTING' : 'WARDEN SPOTTED'}
             </Text>
-            <Text style={styles.alertDistance}>{alertDistance}m away</Text>
+            <Text style={styles.alertDistance} adjustsFontSizeToFit numberOfLines={1} allowFontScaling={false}>{alertDistance}m away</Text>
             <Text style={styles.alertTime}>{formatMinutesAgo(alertMinutesAgo)}</Text>
             <Text style={styles.alertSub}>
               {alertIsRecent
@@ -727,7 +762,7 @@ export default function ParkedScreen() {
               <Ionicons
                 name="timer-outline"
                 size={16}
-                color={ticketExpiresAt ? '#FFD700' : '#555555'}
+                color={ticketExpiresAt ? '#FFD700' : '#FFFFFF'}
               />
               <Text style={[styles.timerChipText, ticketExpiresAt && styles.timerChipTextActive]}>
                 {ticketExpiresAt
@@ -792,26 +827,49 @@ export default function ParkedScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.locationButton, carLocation && !activeTrack && styles.locationButtonSet, activeTrack && styles.locationButtonDisabled]}
-            onPress={() => !activeTrack && router.push('/carlocation')}
-            activeOpacity={activeTrack ? 1 : 0.7}
-            disabled={activeTrack}
+            style={[
+              styles.locationButton,
+              carLocation && !activeTrack && styles.locationButtonSet,
+              (activeTrack || (isActive && userTier !== 'unlimited')) && styles.locationButtonDisabled,
+            ]}
+            onPress={() => {
+              if (activeTrack) return;
+              if (isActive && userTier !== 'unlimited') return;
+              router.push('/carlocation');
+            }}
+            activeOpacity={(activeTrack || (isActive && userTier !== 'unlimited')) ? 1 : 0.7}
+            disabled={activeTrack || (isActive && userTier !== 'unlimited')}
           >
-            <Ionicons name="location" size={22} color={activeTrack ? '#333333' : carLocation ? '#E63946' : '#666666'} />
+            <Ionicons name="location" size={22} color={
+              activeTrack ? '#333333'
+              : (isActive && userTier !== 'unlimited') ? '#333333'
+              : carLocation ? '#E63946'
+              : '#666666'
+            } />
             <View style={styles.locationTextWrapper}>
-              <Text style={[styles.locationLabel, !activeTrack && carLocation && styles.locationLabelSet, activeTrack && styles.locationLabelDisabled]}>
-                {activeTrack ? 'LOCATION NOT NEEDED' : carLocation ? 'CAR LOCATION SET' : 'SET CAR LOCATION MANUALLY'}
+              <Text style={[
+                styles.locationLabel,
+                !activeTrack && carLocation && !(isActive && userTier !== 'unlimited') && styles.locationLabelSet,
+                (activeTrack || (isActive && userTier !== 'unlimited')) && styles.locationLabelDisabled,
+              ]}>
+                {activeTrack ? 'LOCATION NOT NEEDED'
+                  : (isActive && userTier !== 'unlimited') ? 'CAR LOCATION LOCKED'
+                  : carLocation ? 'CAR LOCATION SET'
+                  : 'SET CAR LOCATION MANUALLY'}
               </Text>
               <Text style={styles.locationSub}>
-                {activeTrack ? 'GPS updates continuously' : carLocation ? 'Tap to update' : 'Defaults to your current GPS'}
+                {activeTrack ? 'GPS updates continuously'
+                  : (isActive && userTier !== 'unlimited') ? 'Deactivate to change location'
+                  : carLocation ? 'Tap to update'
+                  : 'Defaults to your current GPS'}
               </Text>
             </View>
-            {!activeTrack && carLocation && <Text style={styles.locationTick}>✓</Text>}
+            {!activeTrack && carLocation && !(isActive && userTier !== 'unlimited') && <Text style={styles.locationTick}>✓</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(24, insets.bottom + 16) }]}>
         <TouchableOpacity
           style={[styles.deactivateButton, !isActive && styles.activateButton]}
           onPress={isActive ? handleDeactivate : handleActivate}
@@ -830,13 +888,13 @@ export default function ParkedScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
   alertOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  alertBox: { borderWidth: 2, borderRadius: 16, padding: 32, alignItems: 'center', gap: 12, width: '100%' },
+  alertBox: { borderWidth: 3, borderRadius: 16, padding: 32, alignItems: 'center', gap: 12, width: '100%' },
   alertBoxLive: { backgroundColor: '#1A0000', borderColor: '#E63946' },
-  alertBoxRecent: { backgroundColor: '#1A1200', borderColor: '#FFD700' },
+  alertBoxRecent: { backgroundColor: '#1A0000', borderColor: '#E63946' },
   alertEmoji: { fontSize: 64 },
-  alertTitle: { fontSize: 36, fontWeight: '900', color: '#E63946', letterSpacing: 6 },
-  alertTitleRecent: { color: '#FFD700' },
-  alertDistance: { fontSize: 48, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
+  alertTitle: { fontSize: 28, fontWeight: '900', color: '#E63946', letterSpacing: 3, textAlign: 'center', width: '100%' },
+  alertTitleRecent: { color: '#E63946' },
+  alertDistance: { fontSize: 48, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2, textAlign: 'center', alignSelf: 'stretch' },
   alertTime: { fontSize: 18, fontWeight: '700', color: '#888888', letterSpacing: 2 },
   alertSub: { fontSize: 14, color: '#888888', letterSpacing: 1, textAlign: 'center' },
   alertButton: { backgroundColor: '#E63946', paddingVertical: 16, paddingHorizontal: 48, borderRadius: 8, marginTop: 8 },
@@ -844,20 +902,20 @@ const styles = StyleSheet.create({
   alertButtonText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
   alertButtonTextRecent: { color: '#0D0D0D' },
   topBar: { paddingHorizontal: 20, paddingTop: Platform.OS === 'android' ? 72 : 12, paddingBottom: 12 },
-  backButton: {},
+  backButton: { paddingVertical: 12, paddingRight: 24 },
   backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
   doubleYellow: { marginTop: 8 },
-  yellowLine: { width: '100%', height: 22, backgroundColor: '#FFD700' },
-  yellowGap: { height: 12, backgroundColor: '#0D0D0D' },
+  yellowLine: { width: '100%', height: 10, backgroundColor: '#FFD700' },
+  yellowGap: { height: 6, backgroundColor: '#0D0D0D' },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 32 },
-  header: { paddingVertical: 40, justifyContent: 'center', alignItems: 'center', gap: 10, paddingHorizontal: 24 },
-  tickCircle: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  tick: { fontSize: 36, color: '#FFFFFF', fontWeight: '900', lineHeight: 42 },
-  notLabel: { fontSize: 64, fontWeight: '900', color: '#555555', letterSpacing: 8 },
-  activatedLabel: { fontSize: 64, fontWeight: '900', color: '#E63946', letterSpacing: 2, width: '100%', textAlign: 'center' },
+  header: { paddingVertical: 20, justifyContent: 'center', alignItems: 'center', gap: 6, paddingHorizontal: 24 },
+  tickCircle: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  tick: { fontSize: 28, color: '#FFFFFF', fontWeight: '900', lineHeight: 34 },
+  notLabel: { fontSize: 48, fontWeight: '900', color: '#555555', letterSpacing: 8 },
+  activatedLabel: { fontSize: 48, fontWeight: '900', color: '#E63946', letterSpacing: 2, width: '100%', textAlign: 'center' },
   activatedLabelInactive: { color: '#555555' },
-  subLabel: { fontSize: 16, color: '#888888', letterSpacing: 2 },
+  subLabel: { fontSize: 13, color: '#888888', letterSpacing: 2 },
   section: { paddingHorizontal: 24, gap: 16, marginBottom: 16 },
   sectionLabel: { fontSize: 11, fontWeight: '700', color: '#666666', letterSpacing: 2, textAlign: 'center' },
   radiiRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
@@ -884,7 +942,7 @@ const styles = StyleSheet.create({
   locationLabelDisabled: { color: '#444444' },
   locationSub: { fontSize: 11, color: '#555555', letterSpacing: 1, marginTop: 2 },
   locationTick: { fontSize: 18, color: '#E63946', fontWeight: '900' },
-  footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: Platform.OS === 'android' ? 48 : 24, alignItems: 'center' },
+  footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, alignItems: 'center' },
   deactivateButton: { paddingVertical: 16, paddingHorizontal: 48, borderRadius: 8, borderWidth: 1, borderColor: '#FFFFFF' },
   activateButton: { borderColor: '#E63946' },
   deactivateText: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
@@ -929,7 +987,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: '#666666',
     backgroundColor: '#1A1A1A',
     marginTop: 4,
   },
@@ -940,7 +998,7 @@ const styles = StyleSheet.create({
   timerChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#555555',
+    color: '#FFFFFF',
     letterSpacing: 1.5,
   },
   timerChipTextActive: {

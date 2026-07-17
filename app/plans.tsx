@@ -1,7 +1,8 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { supabase } from '../lib/supabase';
 import { logScreen } from '../lib/analytics';
 
@@ -26,13 +27,14 @@ const BETA_MODE = true;
 const PLANS = [
   {
     id: 'free',
-    name: 'FREE',
+    name: 'LOOKOUT',
     price: '£0',
     fullPrice: null,
     period: '/ month',
-    tagline: 'Earn your way with the community',
+    tagline: 'Spot wardens. Help the community.',
     features: [
       '1 activation per week',
+      '🎟 Prize draw — coming soon',
       'Earn +1 activation per 10 verified reports',
       'Earned credits valid for 14 days',
       'Push notifications',
@@ -54,6 +56,7 @@ const PLANS = [
     tagline: 'For the regular parker',
     features: [
       '1 activation per day',
+      '🎟 Prize draw — coming soon',
       'Earn +1 activation per 10 verified reports',
       'Earned credits never expire',
       'Push notifications',
@@ -76,7 +79,9 @@ const PLANS = [
     tagline: 'For drivers always on the move',
     features: [
       'Unlimited activations',
+      '🎟 Prize draw — coming soon',
       'Active Track — GPS moves with you',
+      'Update vehicle location while activated',
       'Perfect for delivery & trade use',
       'Push notifications',
       'Siren alert',
@@ -92,10 +97,21 @@ const PLANS = [
   },
 ];
 
+// Maps RevenueCat package identifier → DoublYellow tier
+// These must match the identifiers you create in your RevenueCat dashboard
+const PACKAGE_TO_TIER: Record<string, string> = {
+  '$rc_monthly_pro': 'pro',          // update if you use a custom identifier
+  '$rc_monthly_unlimited': 'unlimited',
+  'doubleyellow_pro_monthly': 'pro',
+  'doubleyellow_unlimited_monthly': 'unlimited',
+};
+
 export default function PlansScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const [userTier, setUserTier] = useState<string>('free');
+  const [packages, setPackages] = useState<Record<string, PurchasesPackage>>({});
+  const [purchasing, setPurchasing] = useState<string | null>(null);
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -114,6 +130,61 @@ export default function PlansScreen() {
       if (data?.tier) setUserTier(data.tier);
     })();
   }, []);
+
+  // Load available packages from RevenueCat (only when not in beta)
+  useEffect(() => {
+    if (BETA_MODE) return;
+    (async () => {
+      try {
+        const offerings = await Purchases.getOfferings();
+        if (!offerings.current) return;
+        const pkgMap: Record<string, PurchasesPackage> = {};
+        offerings.current.availablePackages.forEach(pkg => {
+          pkgMap[pkg.identifier] = pkg;
+          // Also key by product ID for flexibility
+          pkgMap[pkg.product.identifier] = pkg;
+        });
+        setPackages(pkgMap);
+      } catch (e) {
+        console.warn('RevenueCat offerings error:', e);
+      }
+    })();
+  }, []);
+
+  const handlePurchase = async (planId: string) => {
+    if (BETA_MODE) return;
+    // Map plan → RC package identifier (use the identifiers from your RC dashboard)
+    const rcIdentifier = planId === 'pro' ? 'doubleyellow_pro_monthly' : 'doubleyellow_unlimited_monthly';
+    const pkg = packages[rcIdentifier] ?? Object.values(packages).find(p =>
+      PACKAGE_TO_TIER[p.identifier] === planId || PACKAGE_TO_TIER[p.product.identifier] === planId
+    );
+    if (!pkg) {
+      Alert.alert('Not available', 'This plan is not available right now. Please try again shortly.');
+      return;
+    }
+    setPurchasing(planId);
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      // RevenueCat webhook will update Supabase tier server-side.
+      // We also update optimistically here for instant UI feedback.
+      const tier = planId;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase.functions.invoke('set-tier', {
+          body: { tier, source: 'app_purchase' },
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).catch(() => {}); // webhook is the source of truth; this is just an optimistic update
+      }
+      setUserTier(tier);
+      Alert.alert('Subscribed!', `You're now on the ${planId.toUpperCase()} plan.`);
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
+      }
+    } finally {
+      setPurchasing(null);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -199,18 +270,23 @@ export default function PlansScreen() {
               style={[
                 styles.ctaButton,
                 plan.highlight && styles.ctaButtonHighlight,
-                (plan.ctaDisabled || plan.id === userTier) && styles.ctaButtonDisabled,
+                (plan.ctaDisabled || plan.id === userTier || plan.id === 'free') && styles.ctaButtonDisabled,
                 plan.id === userTier && styles.ctaButtonCurrent,
               ]}
-              disabled={plan.ctaDisabled || plan.id === userTier}
+              disabled={plan.ctaDisabled || plan.id === userTier || plan.id === 'free' || purchasing !== null}
               activeOpacity={0.8}
+              onPress={() => !BETA_MODE && plan.id !== 'free' && plan.id !== userTier ? handlePurchase(plan.id) : undefined}
             >
               <Text style={[
                 styles.ctaText,
                 plan.highlight && styles.ctaTextHighlight,
-                (plan.ctaDisabled || plan.id === userTier) && styles.ctaTextDisabled,
+                (plan.ctaDisabled || plan.id === userTier || plan.id === 'free') && styles.ctaTextDisabled,
               ]}>
-                {plan.id === userTier ? 'YOUR CURRENT PLAN' : plan.cta}
+                {plan.id === userTier
+                  ? 'YOUR CURRENT PLAN'
+                  : purchasing === plan.id
+                    ? 'PROCESSING...'
+                    : plan.cta}
               </Text>
             </TouchableOpacity>
           </View>

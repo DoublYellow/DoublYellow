@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { playCelebrate, stopSound } from '../lib/sounds';
@@ -72,6 +73,7 @@ type Lookout = { id: string; username: string; thanked: boolean; pointsSent: boo
 export default function CelebrateScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { reporterIds: reporterIdsStr } = useLocalSearchParams<{ reporterIds: string }>();
   const [lookouts, setLookouts] = useState<Lookout[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -191,30 +193,27 @@ export default function CelebrateScreen() {
   }, [reporterIdsStr]);
 
   const handleThumbsUp = async (lookoutId: string) => {
-    console.warn('CHEERS TAPPED — currentUserId:', currentUserId, 'lookoutId:', lookoutId);
     if (!currentUserId) return;
     // Optimistically update UI
     setLookouts((prev) =>
       prev.map((l) => (l.id === lookoutId ? { ...l, thanked: true } : l))
     );
     // Record thanks in DB + send push notification to lookout
-    const { data, error } = await supabase.functions.invoke('send-thanks', {
+    await supabase.functions.invoke('send-thanks', {
       body: { to_user_id: lookoutId, from_user_id: currentUserId, type: 'cheers' },
     });
-    console.warn('send-thanks result:', JSON.stringify({ data, error }));
   };
 
   const handleSendPoints = async (lookoutId: string) => {
-    console.warn('POINTS TAPPED — currentUserId:', currentUserId, 'userPoints:', userPoints, 'lookoutId:', lookoutId);
     if (!currentUserId || userPoints < 10) return;
     // Optimistically update UI
     setUserPoints((prev) => prev - 10);
     setLookouts((prev) =>
       prev.map((l) => (l.id === lookoutId ? { ...l, pointsSent: true, thanked: true } : l))
     );
-    // Transfer points in DB
-    await supabase.rpc('increment_points', { user_id: currentUserId, amount: -10 });
-    await supabase.rpc('increment_points', { user_id: lookoutId, amount: 10 });
+    // Transfer points in DB — p_user_id / p_points match the SECURITY DEFINER function signature
+    await supabase.rpc('increment_points', { p_user_id: currentUserId, p_points: -10 });
+    await supabase.rpc('increment_points', { p_user_id: lookoutId, p_points: 10 });
     // Record thanks in DB + send push notification to lookout
     await supabase.functions.invoke('send-thanks', {
       body: { to_user_id: lookoutId, from_user_id: currentUserId, type: 'points' },
@@ -330,15 +329,14 @@ export default function CelebrateScreen() {
           </View>
         )}
 
-        <HapticButton style={styles.homeButton} onPress={() => router.replace('/')} activeOpacity={0.8}>
+        <HapticButton style={[styles.homeButton, { marginBottom: 8 }]} onPress={() => router.replace('/')} activeOpacity={0.8}>
           <Text style={styles.homeText}>BACK TO HOME</Text>
         </HapticButton>
 
-        <View style={{ height: 130 }} />
       </ScrollView>
 
-      {/* Double yellow lines — branded footer, always visible */}
-      <View style={styles.doubleYellow} pointerEvents="none">
+      {/* Double yellow lines — branded footer, always visible, never overlapping */}
+      <View style={[styles.doubleYellow, { paddingBottom: insets.bottom }]}>
         <View style={styles.yellowLine} />
         <View style={styles.yellowGap} />
         <View style={styles.yellowLine} />
@@ -352,26 +350,25 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
   confettiContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
   doubleYellow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 100,
-    zIndex: 5,
+    width: '100%',
   },
   yellowLine: {
     width: '100%',
-    height: 40,
+    height: 10,
     backgroundColor: '#FFD700',
   },
   yellowGap: {
-    height: 20,
+    height: 6,
     backgroundColor: '#0D0D0D',
   },
   confettiPiece: { position: 'absolute', top: 0, borderRadius: 2 },
   content: {
+    flexGrow: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingTop: 160,
+    paddingTop: 32,
+    paddingBottom: 24,
     gap: 16,
   },
   bigEmoji: { fontSize: 80 },

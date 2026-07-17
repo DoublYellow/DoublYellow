@@ -1,3 +1,5 @@
+import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -29,6 +31,7 @@ type Profile = {
   avatar_url: string | null;
   tier: string | null;
   drivers_saved: number;
+  raffle_tickets: number;
 };
 
 const TIER_LABELS: Record<string, string> = {
@@ -79,7 +82,7 @@ export default function ProfileScreen() {
         { count: pCount },
         { count: msgCount },
       ] = await Promise.all([
-        supabase.from('profiles').select('username, points, avatar_url, tier, drivers_saved').eq('id', user.id).single(),
+        supabase.from('profiles').select('username, points, avatar_url, tier, drivers_saved, raffle_tickets').eq('id', user.id).single(),
         supabase.from('warden_reports').select('*', { count: 'exact' }).eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
         supabase.from('warden_reports').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('photo_verified', true),
         supabase.from('messages').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('read', false),
@@ -254,20 +257,34 @@ export default function ProfileScreen() {
     setUploadingAvatar(true);
     try {
       const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
-      const fileName = `${userId}.${ext}`;
+      const fileName = `${userId}_${Date.now()}.${ext}`;
 
-      const response = await fetch(uri);
-      const arrayBuffer = await response.arrayBuffer();
+      // Use expo-file-system for reliable native upload — avoids React Native
+      // blob/fetch networking issues in production builds.
+      const { data: { session: uploadSession } } = await supabase.auth.getSession();
+      if (!uploadSession) {
+        Alert.alert('Upload Failed', 'Session expired. Please log out and back in.');
+        setUploadingAvatar(false);
+        return;
+      }
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, arrayBuffer, {
-          contentType: `image/${ext}`,
-          upsert: true,
-        });
+      const uploadResult = await uploadAsync(
+        `https://mihqpweuziyjuualslrp.supabase.co/storage/v1/object/avatars/${fileName}`,
+        uri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystemUploadType.BINARY_CONTENT,
+          headers: {
+            Authorization: `Bearer ${uploadSession.access_token}`,
+            apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1paHFwd2V1eml5anV1YWxzbHJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NTU3NDksImV4cCI6MjA4ODUzMTc0OX0.pj9PzU8gvOHUNelw1ek7Cf9-PBDYEf-PmfiesMElGtw',
+            'Content-Type': `image/${ext}`,
+            'x-upsert': 'true',
+          },
+        }
+      );
 
-      if (uploadError) {
-        Alert.alert('Upload Failed', 'Could not upload your photo. Please try again.');
+      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
+        Alert.alert('Upload Failed', `Could not upload your photo (${uploadResult.status}). Please try again.`);
         setUploadingAvatar(false);
         return;
       }
@@ -277,24 +294,22 @@ export default function ProfileScreen() {
         .getPublicUrl(fileName);
 
       const cleanUrl = urlData.publicUrl;
-      const displayUrl = `${cleanUrl}?t=${Date.now()}`;
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const updateRes = await supabase.functions.invoke('update-profile', {
-        body: { avatar_url: cleanUrl },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
+      // Update avatar_url directly — no edge function needed, permissions confirmed correct
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: cleanUrl })
+        .eq('id', userId);
 
-      if (updateRes.error || updateRes.data?.error) {
-        Alert.alert('Upload Failed', 'Photo uploaded but profile could not be updated. Please try again.');
+      if (dbError) {
+        Alert.alert('Upload Failed', 'Photo saved but profile could not be updated: ' + dbError.message);
         setUploadingAvatar(false);
         return;
       }
 
-      // Use timestamped URL locally to force the image cache to refresh
-      setAvatarUrl(displayUrl);
-    } catch (e) {
-      console.log('AVATAR ERROR:', e);
+      setAvatarUrl(cleanUrl);
+    } catch (e: any) {
+      Alert.alert('Upload Failed', e?.message ?? 'Unexpected error. Please try again.');
     }
 
     setUploadingAvatar(false);
@@ -318,7 +333,15 @@ export default function ProfileScreen() {
               aspect: [1, 1],
               quality: 0.7,
             });
-            if (!result.canceled) uploadAvatarFromUri(result.assets[0].uri);
+            if (!result.canceled) {
+              // Flip horizontally to correct the front camera mirror effect on Android
+              const flipped = await ImageManipulator.manipulateAsync(
+                result.assets[0].uri,
+                [{ flip: ImageManipulator.FlipType.Horizontal }],
+                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+              );
+              uploadAvatarFromUri(flipped.uri);
+            }
           },
         },
         {
@@ -365,7 +388,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container}>
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backButtonTouch}>
           <Text style={styles.backText}>← BACK</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>PROFILE</Text>
@@ -384,6 +407,7 @@ export default function ProfileScreen() {
               </View>
             ) : avatarUrl ? (
               <Image
+                key={avatarUrl}
                 source={{ uri: avatarUrl }}
                 style={styles.avatarImage}
                 onError={(e) => console.log('IMAGE ERROR:', e.nativeEvent.error)}
@@ -472,6 +496,27 @@ export default function ProfileScreen() {
             <Text style={styles.statValue}>{reportCount}</Text>
             <Text style={styles.statLabel}>REPORTS</Text>
           </View>
+        </View>
+
+        {/* ── Prize Draw Card ── */}
+        <View style={[styles.raffleCard, styles.raffleCardComingSoon]}>
+          <View style={styles.raffleComingSoonBadge}>
+            <Text style={styles.raffleComingSoonText}>COMING SOON</Text>
+          </View>
+          <View style={styles.raffleHeader}>
+            <Text style={styles.raffleIcon}>🎟</Text>
+            <View style={styles.raffleTitleBlock}>
+              <Text style={[styles.raffleTitle, styles.raffleTextMuted]}>ANNUAL PRIZE DRAW</Text>
+              <Text style={[styles.raffleSub, styles.raffleTextMuted]}>Spot a warden, save a driver, earn a ticket.</Text>
+            </View>
+          </View>
+          <View style={styles.raffleTicketRow}>
+            <Text style={[styles.raffleTicketCount, styles.raffleTextMuted]}>{profile?.raffle_tickets ?? 0}</Text>
+            <Text style={[styles.raffleTicketLabel, styles.raffleTextMuted]}>{(profile?.raffle_tickets ?? 0) === 1 ? 'TICKET' : 'TICKETS'} BANKED</Text>
+          </View>
+          <Text style={[styles.raffleNote, styles.raffleTextMuted]}>
+            We're finalising the prize. Keep spotting wardens — your tickets are being counted and will carry over when the draw launches.
+          </Text>
         </View>
 
         {/* ── Activation Credits Card ── */}
@@ -715,8 +760,9 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
   },
+  backButtonTouch: { width: 60, paddingVertical: 12 },
   backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
-  headerTitle: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4 },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 4, textAlign: 'center' },
   settingsBtn: { width: 60, alignItems: 'flex-end' },
   scroll: { flex: 1 },
   heroCard: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 8 },
@@ -731,7 +777,21 @@ const styles = StyleSheet.create({
   progressBar: { width: '80%', height: 4, backgroundColor: '#333333', borderRadius: 2, marginTop: 8 },
   progressFill: { height: 4, backgroundColor: '#FFD700', borderRadius: 2 },
   progressLabel: { fontSize: 11, color: '#555555', letterSpacing: 1 },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 6, marginBottom: 24 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 6, marginBottom: 12 },
+  raffleCard: { marginHorizontal: 16, marginBottom: 24, backgroundColor: '#0D0D00', borderWidth: 1, borderColor: '#FFD700', borderRadius: 12, padding: 16, gap: 12 },
+  raffleHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  raffleIcon: { fontSize: 28 },
+  raffleTitleBlock: { flex: 1, gap: 2 },
+  raffleTitle: { fontSize: 12, fontWeight: '900', color: '#FFD700', letterSpacing: 3 },
+  raffleSub: { fontSize: 11, color: '#666666', letterSpacing: 0.5 },
+  raffleTicketRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  raffleTicketCount: { fontSize: 40, fontWeight: '900', color: '#FFD700' },
+  raffleTicketLabel: { fontSize: 11, fontWeight: '700', color: '#888888', letterSpacing: 2 },
+  raffleNote: { fontSize: 12, color: '#555555', lineHeight: 18 },
+  raffleCardComingSoon: { borderColor: '#333333', backgroundColor: '#111111' },
+  raffleTextMuted: { color: '#444444' },
+  raffleComingSoonBadge: { alignSelf: 'flex-start', backgroundColor: '#222222', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 4 },
+  raffleComingSoonText: { fontSize: 9, fontWeight: '900', color: '#555555', letterSpacing: 2 },
   statCard: { flex: 1, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333333', borderRadius: 10, padding: 12, alignItems: 'center', gap: 4 },
   statValue: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
   statLabel: { fontSize: 9, fontWeight: '700', color: '#555555', letterSpacing: 1 },

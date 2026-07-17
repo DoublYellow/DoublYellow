@@ -1,11 +1,15 @@
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HapticButton from '../components/HapticButton';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -22,19 +26,23 @@ export default function WelcomeScreen() {
           <View style={styles.yellowLine} />
         </View>
         <View style={styles.logoTextWrapper}>
-          <Text style={styles.logoText}>DOUBLE</Text>
-          <Text style={styles.logoText}>YELLOW</Text>
+          <Text style={styles.logoText} numberOfLines={1} adjustsFontSizeToFit allowFontScaling={false}>DOUBLE</Text>
+          <Text style={styles.logoText} numberOfLines={1} adjustsFontSizeToFit allowFontScaling={false}>YELLOW</Text>
         </View>
         <View style={styles.doubleYellow}>
           <View style={styles.yellowLine} />
           <View style={styles.yellowGap} />
           <View style={styles.yellowLine} />
         </View>
-        <Text style={styles.tagline}>A COMMUNITY SAVING MONEY — ONE PARKING FINE AT A TIME.</Text>
+      </View>
+
+      {/* Tagline */}
+      <View style={styles.taglineWrapper}>
+        <Text style={styles.tagline} allowFontScaling={false}>{'A COMMUNITY SAVING MONEY\nONE PARKING FINE AT A TIME.'}</Text>
       </View>
 
       {/* Buttons */}
-      <View style={styles.buttons}>
+      <View style={[styles.buttons, { paddingBottom: 48 + insets.bottom }]}>
         <HapticButton
           style={styles.signUpButton}
           onPress={() => router.push('/signup')}
@@ -77,32 +85,37 @@ const styles = StyleSheet.create({
   doubleYellow: {},
   yellowLine: {
     width: '100%',
-    height: 48,
+    height: 36,
     backgroundColor: '#FFD700',
   },
   yellowGap: {
-    height: 24,
+    height: 18,
     backgroundColor: '#0D0D0D',
   },
   logoTextWrapper: {
-    paddingVertical: 32,
+    paddingVertical: 24,
     paddingHorizontal: 24,
     gap: 0,
   },
   logoText: {
-    fontSize: 72,
+    fontSize: Math.min(72, SCREEN_WIDTH * 0.17),
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 8,
-    lineHeight: 80,
+    letterSpacing: Math.min(8, SCREEN_WIDTH * 0.018),
+    lineHeight: Math.min(80, SCREEN_WIDTH * 0.19),
+  },
+  taglineWrapper: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
   tagline: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '500',
     color: '#555555',
-    letterSpacing: 4,
+    letterSpacing: 1,
     textAlign: 'center',
-    marginTop: 32,
+    lineHeight: 24,
   },
   buttons: {
     paddingHorizontal: 24,

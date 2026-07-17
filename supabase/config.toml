@@ -1,7 +1,17 @@
 
+[functions.set-tier]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/set-tier/index.ts"
+
+[functions.delete-account]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/delete-account/index.ts"
+
 [functions.notify-warden]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/notify-warden/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

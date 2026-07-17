@@ -2,7 +2,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useNavigation } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Platform, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +12,17 @@ import HapticButton from '../components/HapticButton';
 import { logEvent, logScreen } from '../lib/analytics';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+function getDistanceMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 const CONFETTI_COLORS = ['#FFD700', '#FFD700', '#E63946', '#00C853', '#2196F3', '#FF9800', '#E91E63', '#FFFFFF', '#9C27B0', '#FFD700'];
 const FALL_COUNT = 70;
 const BURST_COUNT = 50; // 25 per side
@@ -65,6 +77,7 @@ function makeBurstPieces() {
 
 export default function WardenScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [submitted, setSubmitted] = useState(false);
   const [pinCoord, setPinCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [photoVerified, setPhotoVerified] = useState(false);
@@ -74,6 +87,8 @@ export default function WardenScreen() {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [newBadges, setNewBadges] = useState<string[]>([]);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+  const [rateLimitSecondsLeft, setRateLimitSecondsLeft] = useState(0);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [username, setUsername] = useState<string>('');
   const [totalReports, setTotalReports] = useState(0);
   const [earnedActivation, setEarnedActivation] = useState(false);
@@ -88,7 +103,29 @@ export default function WardenScreen() {
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
     logScreen('WardenReport');
+    // Pre-check rate limit on mount so user sees countdown before pressing
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await checkRateLimitForUser(user.id);
+    })();
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
   }, [navigation]);
+
+  // Android (Samsung etc) may kill the JS thread while the camera app is open.
+  // getPendingResultAsync recovers the camera result when the app restarts.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    (async () => {
+      const pending = await ImagePicker.getPendingResultAsync();
+      if (pending && !pending.canceled && pending.assets && pending.assets.length > 0) {
+        setPhotoTaken(true);
+        setPhotoVerified(true);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -104,6 +141,41 @@ export default function WardenScreen() {
       setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
     })();
   }, []);
+
+  const startCountdown = (seconds: number) => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    let s = seconds;
+    countdownRef.current = setInterval(() => {
+      s -= 1;
+      if (s <= 0) {
+        clearInterval(countdownRef.current!);
+        countdownRef.current = null;
+        setRateLimitSecondsLeft(0);
+      } else {
+        setRateLimitSecondsLeft(s);
+      }
+    }, 1000);
+  };
+
+  const checkRateLimitForUser = async (userId: string) => {
+    const windowStart = new Date(Date.now() - RATE_LIMIT_MINUTES * 60 * 1000).toISOString();
+    const { data: recentReports } = await supabase
+      .from('warden_reports')
+      .select('created_at')
+      .eq('user_id', userId)
+      .gte('created_at', windowStart)
+      .order('created_at', { ascending: true });
+    if (recentReports && recentReports.length >= RATE_LIMIT_MAX) {
+      const oldestInWindow = new Date(recentReports[0].created_at).getTime();
+      const windowEnds = oldestInWindow + RATE_LIMIT_MINUTES * 60 * 1000;
+      const secondsLeft = Math.ceil((windowEnds - Date.now()) / 1000);
+      if (secondsLeft > 0) {
+        setRateLimitSecondsLeft(secondsLeft);
+        setRateLimitMessage(null);
+        startCountdown(secondsLeft);
+      }
+    }
+  };
 
   const handleMapPress = (e: MapPressEvent) => {
     setPinCoord(e.nativeEvent.coordinate);
@@ -126,42 +198,50 @@ export default function WardenScreen() {
 
   const handleSubmit = async () => {
     if (!pinCoord) return;
+
+    // Ensure the spotter is within 100m of the pin they've dropped.
+    if (location) {
+      const spotterDistance = getDistanceMetres(
+        location.latitude, location.longitude,
+        pinCoord.latitude, pinCoord.longitude
+      );
+      if (spotterDistance > 500) {
+        setRateLimitMessage('You must be within 500 metres of the warden to file a report.');
+        return;
+      }
+    }
+
     setLoading(true);
     setRateLimitMessage(null);
 
+    // Get user first, then fetch profile + rate limit in parallel
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) { setLoading(false); return; }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', user.id)
-      .single();
+    const windowStart = new Date(Date.now() - RATE_LIMIT_MINUTES * 60 * 1000).toISOString();
+    const [{ data: profile }, { data: recentReports }] = await Promise.all([
+      supabase.from('profiles').select('username').eq('id', user.id).single(),
+      supabase.from('warden_reports').select('created_at').eq('user_id', user.id).gte('created_at', windowStart).order('created_at', { ascending: true }),
+    ]);
+
     setUsername(profile?.username ?? '');
 
-    // Rate limit check — block if RATE_LIMIT_MAX reports filed within RATE_LIMIT_MINUTES
-    const windowStart = new Date(Date.now() - RATE_LIMIT_MINUTES * 60 * 1000).toISOString();
-    const { data: recentReports } = await supabase
-      .from('warden_reports')
-      .select('created_at')
-      .eq('user_id', user.id)
-      .gte('created_at', windowStart)
-      .order('created_at', { ascending: true });
-
+    // Rate limit check
     if (recentReports && recentReports.length >= RATE_LIMIT_MAX) {
       const oldestInWindow = new Date(recentReports[0].created_at).getTime();
       const windowEnds = oldestInWindow + RATE_LIMIT_MINUTES * 60 * 1000;
-      const minsLeft = Math.ceil((windowEnds - Date.now()) / 60000);
-      setRateLimitMessage(`You've filed ${RATE_LIMIT_MAX} reports in the last ${RATE_LIMIT_MINUTES} mins. Try again in ${minsLeft} minute${minsLeft === 1 ? '' : 's'}.`);
+      const secondsLeft = Math.ceil((windowEnds - Date.now()) / 1000);
+      if (secondsLeft > 0) {
+        setRateLimitSecondsLeft(secondsLeft);
+        startCountdown(secondsLeft);
+      }
       setLoading(false);
       return;
     }
 
     const points = photoVerified ? 100 : 50;
 
+    // Insert the report
     const { data: reportData } = await supabase.from('warden_reports').insert({
       user_id: user.id,
       latitude: pinCoord.latitude,
@@ -170,64 +250,73 @@ export default function WardenScreen() {
       points_awarded: points,
     }).select('id').single();
 
-    // Award points via Edge Function (server-side validation)
-    if (reportData?.id) {
-      const { data: { session } } = await supabase.auth.getSession();
-      await supabase.functions.invoke('award-points', {
-        body: { report_id: reportData.id },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-    }
-
-    const earned: string[] = [];
-
-    const { count: reportCount } = await supabase
-      .from('warden_reports')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id);
-
-    setTotalReports(reportCount ?? 1);
-    if (reportCount === 1) earned.push('FIRST ALERT');
-
-    if (photoVerified) {
-      const { count: photoCount } = await supabase
-        .from('warden_reports')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('photo_verified', true);
-      if (photoCount === 1) earned.push('VERIFIED');
-    }
-
-    // ── Earned activation credit check ──────────────────────────────────────
-    // Credits are granted server-side by a DB trigger (see supabase_earned_activations.sql).
-    // Here we just query the updated counts to show the user their progress.
-    if (photoVerified) {
-      const [{ count: verifiedCount }, { count: creditsGranted }] = await Promise.all([
-        supabase.from('warden_reports').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('photo_verified', true),
-        supabase.from('earned_activations').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('source', 'warden_report'),
-      ]);
-
-      const vCount = verifiedCount ?? 0;
-      const shouldHave = Math.floor(vCount / 10);
-      const has = creditsGranted ?? 0;
-
-      if (shouldHave > has) {
-        // Trigger just fired — credit has been granted server-side
-        setEarnedActivation(true);
-        setReportsUntilCredit(10);
-      } else {
-        const reportsIntoCurrentBlock = vCount % 10;
-        setReportsUntilCredit(10 - reportsIntoCurrentBlock);
-      }
-    }
-    // ────────────────────────────────────────────────────────────────────────
-
+    // ── Show success screen immediately — report is filed ────────────────────
     setPointsEarned(points);
-    setNewBadges(earned);
     setLoading(false);
     setSubmitted(true);
     logEvent('warden_report_submitted', { photo_verified: photoVerified, points });
     playAlertSent();
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Run all remaining queries in the background — these update the success
+    // screen stats but don't block showing it.
+    ;(async () => {
+      try {
+        const earned: string[] = [];
+
+        // Notify nearby parked drivers + credit raffle tickets to reporter
+        supabase.functions.invoke('notify-warden', {
+          body: {
+            record: {
+              id: reportData?.id,
+              user_id: user.id,
+              latitude: pinCoord.latitude,
+              longitude: pinCoord.longitude,
+              photo_verified: photoVerified,
+            },
+          },
+        }).catch((e) => console.log('notify-warden error:', e));
+
+        // Award points + fetch stats in parallel
+        const { data: { session } } = await supabase.auth.getSession();
+        const [, { count: reportCount }] = await Promise.all([
+          reportData?.id
+            ? supabase.functions.invoke('award-points', {
+                body: { report_id: reportData.id },
+                headers: { Authorization: `Bearer ${session?.access_token}` },
+              })
+            : Promise.resolve(),
+          supabase.from('warden_reports').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        ]);
+
+        setTotalReports(reportCount ?? 1);
+        if (reportCount === 1) earned.push('FIRST ALERT');
+
+        if (photoVerified) {
+          const [{ count: photoCount }, { count: verifiedCount }, { count: creditsGranted }] = await Promise.all([
+            supabase.from('warden_reports').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('photo_verified', true),
+            supabase.from('warden_reports').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('photo_verified', true),
+            supabase.from('earned_activations').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('source', 'warden_report'),
+          ]);
+
+          if (photoCount === 1) earned.push('VERIFIED');
+
+          const vCount = verifiedCount ?? 0;
+          const shouldHave = Math.floor(vCount / 10);
+          const has = creditsGranted ?? 0;
+          if (shouldHave > has) {
+            setEarnedActivation(true);
+            setReportsUntilCredit(10);
+          } else {
+            setReportsUntilCredit(10 - (vCount % 10));
+          }
+        }
+
+        setNewBadges(earned);
+      } catch (e) {
+        console.log('Background stats error:', String(e));
+      }
+    })();
 
     // Fire confetti — burst from sides
     burstPieces.forEach((piece) => {
@@ -311,58 +400,64 @@ export default function WardenScreen() {
             );
           })}
         </View>
-        <Ionicons name="warning" size={64} color="#E63946" />
-        <Text style={styles.successTitle}>ALERT SENT</Text>
 
-        <Text style={styles.successThankYou}>
-          {username ? `Thank you, ${username}!` : 'Thank you!'}
-        </Text>
+        <ScrollView
+          contentContainerStyle={[styles.successScroll, { paddingBottom: 24 + insets.bottom }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Ionicons name="warning" size={48} color="#E63946" />
+          <Text style={styles.successTitle} allowFontScaling={false}>ALERT SENT</Text>
 
-        <Text style={styles.successImpact}>
-          You could have just saved drivers up to{' '}
-          <Text style={styles.successImpactHighlight}>£160 in fines!</Text>
-        </Text>
-
-        <Text style={styles.successSub}>Drivers nearby have been notified.{'\n'}Every spot counts.</Text>
-
-        <Text style={styles.successPoints}>+{pointsEarned} pts earned</Text>
-
-        {totalReports > 1 && (
-          <Text style={styles.successTally}>
-            <Ionicons name="ribbon-outline" size={13} color="#888888" /> You've filed <Text style={styles.successTallyNum}>{totalReports}</Text> alerts — keep it up!
+          <Text style={styles.successThankYou} allowFontScaling={false}>
+            {username ? `Thank you, ${username}!` : 'Thank you!'}
           </Text>
-        )}
 
-        {newBadges.length > 0 && (
-          <View style={styles.badgesEarned}>
-            <Text style={styles.badgesEarnedLabel}>BADGE UNLOCKED</Text>
-            {newBadges.map(badge => (
-              <Text key={badge} style={styles.badgesEarnedItem}><Ionicons name="ribbon-outline" size={18} color="#FFD700" /> {badge}</Text>
-            ))}
-          </View>
-        )}
-
-        {earnedActivation && (
-          <View style={styles.creditEarned}>
-            <Ionicons name="car-sport" size={22} color="#4CAF50" />
-            <Text style={styles.creditEarnedText}>BONUS ACTIVATION EARNED!</Text>
-            <Text style={styles.creditEarnedSub}>You've verified 10 wardens — a free activation has been added to your account.</Text>
-          </View>
-        )}
-
-        {!earnedActivation && photoVerified && reportsUntilCredit !== null && (
-          <Text style={styles.creditProgress}>
-            <Ionicons name="car-outline" size={13} color="#555555" /> {reportsUntilCredit} more verified report{reportsUntilCredit !== 1 ? 's' : ''} until a free activation
+          <Text style={styles.successImpact} allowFontScaling={false}>
+            You could have just saved drivers up to{' '}
+            <Text style={styles.successImpactHighlight}>£160 in fines!</Text>
           </Text>
-        )}
 
-        <Text style={styles.successEncourage}>Keep spotting. Keep saving.{'\n'}You're making a real difference.{' '}
-          <Ionicons name="heart-outline" size={14} color="#555555" />
-        </Text>
+          <Text style={styles.successSub} allowFontScaling={false}>Drivers nearby have been notified.{'\n'}Every spot counts.</Text>
 
-        <HapticButton style={styles.successHomeButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <Text style={styles.successHomeText}>BACK TO HOME</Text>
-        </HapticButton>
+          <Text style={styles.successPoints} allowFontScaling={false}>+{pointsEarned} pts earned</Text>
+
+          {totalReports > 1 && (
+            <Text style={styles.successTally} allowFontScaling={false}>
+              <Ionicons name="ribbon-outline" size={13} color="#888888" /> You've filed <Text style={styles.successTallyNum}>{totalReports}</Text> alerts — keep it up!
+            </Text>
+          )}
+
+          {newBadges.length > 0 && (
+            <View style={styles.badgesEarned}>
+              <Text style={styles.badgesEarnedLabel}>BADGE UNLOCKED</Text>
+              {newBadges.map(badge => (
+                <Text key={badge} style={styles.badgesEarnedItem}><Ionicons name="ribbon-outline" size={18} color="#FFD700" /> {badge}</Text>
+              ))}
+            </View>
+          )}
+
+          {earnedActivation && (
+            <View style={styles.creditEarned}>
+              <Ionicons name="car-sport" size={22} color="#4CAF50" />
+              <Text style={styles.creditEarnedText}>BONUS ACTIVATION EARNED!</Text>
+              <Text style={styles.creditEarnedSub}>You've verified 10 wardens — a free activation has been added to your account.</Text>
+            </View>
+          )}
+
+          {!earnedActivation && photoVerified && reportsUntilCredit !== null && (
+            <Text style={styles.creditProgress} allowFontScaling={false}>
+              <Ionicons name="car-outline" size={13} color="#555555" /> {reportsUntilCredit} more verified report{reportsUntilCredit !== 1 ? 's' : ''} until a free activation
+            </Text>
+          )}
+
+          <Text style={styles.successEncourage} allowFontScaling={false}>Keep spotting. Keep saving.{'\n'}You're making a real difference.{' '}
+            <Ionicons name="heart-outline" size={14} color="#555555" />
+          </Text>
+
+          <HapticButton style={styles.successHomeButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <Text style={styles.successHomeText}>BACK TO HOME</Text>
+          </HapticButton>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -371,7 +466,7 @@ export default function WardenScreen() {
     <SafeAreaView style={styles.container}>
 
       <View style={styles.topBar}>
-        <HapticButton onPress={() => navigation.goBack()} activeOpacity={0.7}>
+        <HapticButton onPress={() => navigation.goBack()} activeOpacity={0.7} style={styles.backButton}>
           <Text style={styles.backText}>← BACK</Text>
         </HapticButton>
       </View>
@@ -398,7 +493,7 @@ export default function WardenScreen() {
               }}
             >
               {pinCoord && (
-                <Marker coordinate={pinCoord} pinColor="#FFD700" />
+                <Marker coordinate={pinCoord} pinColor="#FFD700" tappable={false} />
               )}
             </MapView>
             {!pinCoord && (
@@ -436,18 +531,19 @@ export default function WardenScreen() {
         {photoVerified && <Text style={styles.photoBonusTag}>BONUS</Text>}
       </HapticButton>
 
-      <View style={styles.footer}>
-        {rateLimitMessage && (
-          <Text style={styles.rateLimitText}>⏱ {rateLimitMessage}</Text>
-        )}
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <HapticButton
-          style={[styles.submitButton, (!pinCoord || loading) && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (!pinCoord || loading || rateLimitSecondsLeft > 0) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={!pinCoord || loading}
+          disabled={!pinCoord || loading || rateLimitSecondsLeft > 0}
           activeOpacity={0.8}
         >
-          <Text style={[styles.submitText, (!pinCoord || loading) && styles.submitTextDisabled]}>
-            {loading ? 'SENDING...' : 'REPORT WARDEN'}
+          <Text style={[styles.submitText, (!pinCoord || loading || rateLimitSecondsLeft > 0) && styles.submitTextDisabled]}>
+            {loading
+              ? 'SENDING...'
+              : rateLimitSecondsLeft > 0
+              ? `WAIT ${Math.floor(rateLimitSecondsLeft / 60)}:${(rateLimitSecondsLeft % 60).toString().padStart(2, '0')}`
+              : 'REPORT WARDEN'}
           </Text>
         </HapticButton>
       </View>
@@ -475,6 +571,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 52 : 12,
     paddingBottom: 8,
   },
+  backButton: { paddingVertical: 10, paddingRight: 24 },
   header: {
     paddingHorizontal: 24,
     paddingBottom: 12,
@@ -570,13 +667,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   footer: { padding: 16, paddingBottom: 24, gap: 10 },
-  rateLimitText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#E63946',
-    letterSpacing: 1,
-    textAlign: 'center',
-  },
   submitButton: {
     backgroundColor: '#FFD700',
     paddingVertical: 18,
@@ -598,19 +688,25 @@ const styles = StyleSheet.create({
   successContainer: {
     flex: 1,
     backgroundColor: '#0D0D0D',
-    justifyContent: 'center',
+  },
+  successScroll: {
+    flexGrow: 1,
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    gap: 14,
   },
   confettiContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
   successTitle: {
-    fontSize: 52,
+    fontSize: Math.min(48, SCREEN_WIDTH * 0.13),
     fontWeight: '900',
     color: '#FFD700',
     letterSpacing: 8,
+    textAlign: 'center',
   },
   successThankYou: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 2,
@@ -636,7 +732,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   successPoints: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 4,
@@ -664,10 +760,10 @@ const styles = StyleSheet.create({
   successHomeButton: {
     backgroundColor: '#FFD700',
     paddingVertical: 18,
-    paddingHorizontal: 48,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 24,
+    alignSelf: 'stretch',
+    marginTop: 16,
   },
   successHomeText: {
     fontSize: 16,

@@ -39,11 +39,10 @@ export default function AppealScreen() {
     <SafeAreaView style={styles.container}>
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace('/')} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.replace('/')} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 24 }} style={styles.backButton}>
           <Text style={styles.backText}>← BACK</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>FIGHT YOUR TICKET</Text>
-        <View style={{ width: 60 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -249,15 +248,15 @@ export default function AppealScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
     paddingHorizontal: 24,
     paddingTop: 56,
     paddingBottom: 16,
+    gap: 10,
   },
+  backButton: { paddingVertical: 4 },
   backText: { fontSize: 12, fontWeight: '700', color: '#666666', letterSpacing: 2 },
-  headerTitle: { fontSize: 16, fontWeight: '900', color: '#E63946', letterSpacing: 3 },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: '#E63946', letterSpacing: 3 },
   scroll: { flex: 1 },
   introBox: {
     marginHorizontal: 16,

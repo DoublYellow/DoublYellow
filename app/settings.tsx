@@ -435,16 +435,37 @@ export default function SettingsScreen() {
               onPress={() => {
                 Alert.alert(
                   'Delete Account',
-                  'This will send a deletion request to our team. We will permanently delete your account and all associated data within 30 days.',
+                  'This will permanently delete your account and all associated data immediately. This cannot be undone.',
                   [
                     { text: 'Cancel', style: 'cancel' },
                     {
-                      text: 'Send Request',
+                      text: 'Delete My Account',
                       style: 'destructive',
                       onPress: () => {
-                        const subject = encodeURIComponent('Account Deletion Request');
-                        const body = encodeURIComponent(`Please delete my DoubleYellow account and all associated data.\n\nEmail: ${email}\n\nI understand this action is permanent.`);
-                        Linking.openURL('https://docs.google.com/forms/d/e/1FAIpQLSeKnoMuWjdupRaWoQlRzl9CUT5FbjxL47Qqhqynwg2QPHh_6Q/viewform');
+                        Alert.alert(
+                          'Are you sure?',
+                          'Your account, reports, points, and all data will be gone forever.',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Yes, Delete Everything',
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  const { data: { session } } = await supabase.auth.getSession();
+                                  const res = await supabase.functions.invoke('delete-account', {
+                                    headers: { Authorization: `Bearer ${session?.access_token}` },
+                                  });
+                                  if (res.error) throw res.error;
+                                  await supabase.auth.signOut();
+                                  router.replace('/welcome');
+                                } catch (e) {
+                                  Alert.alert('Error', 'Could not delete your account. Please try again or contact support.');
+                                }
+                              },
+                            },
+                          ]
+                        );
                       },
                     },
                   ]
@@ -474,7 +495,7 @@ export default function SettingsScreen() {
                   <Text style={styles.rowSub}>
                     {userTier === 'unlimited' ? 'Unlimited — Full Access'
                       : userTier === 'pro' ? 'Pro — 1 activation/day'
-                      : 'Free — 1 activation/week'}
+                      : 'Lookout — 1 activation/week'}
                   </Text>
                 </View>
               </View>

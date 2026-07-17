@@ -1,17 +1,20 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { logScreen } from '../lib/analytics';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [isParkedActive, setIsParkedActive] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [ticketExpiresAt, setTicketExpiresAt] = useState<Date | null>(null);
   const pulse = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -35,12 +38,20 @@ export default function HomeScreen() {
           .single();
         setIsParkedActive(!!session);
 
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('avatar_url')
-          .eq('id', user.id)
-          .single();
-        if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
+        // Read ticket timer from AsyncStorage
+        const stored = await AsyncStorage.getItem('ticket_timer_expires');
+        if (stored && session) {
+          const expires = new Date(stored);
+          if (expires > new Date()) {
+            setTicketExpiresAt(expires);
+          } else {
+            // Timer has already passed — clean up
+            await AsyncStorage.removeItem('ticket_timer_expires');
+            setTicketExpiresAt(null);
+          }
+        } else {
+          setTicketExpiresAt(null);
+        }
 
         const { count } = await supabase
           .from('messages')
@@ -72,21 +83,23 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" backgroundColor="#0D0D0D" />
 
-      {/* Header */}
+      {/* Header — logo left, icons right */}
       <View style={styles.header}>
-        <Text style={styles.logo}>DOUBLEYELLOW</Text>
-        <TouchableOpacity onPress={() => router.push('/profile')} activeOpacity={0.7}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatarCircle}>
-              <Ionicons name="person-outline" size={22} color="#555555" />
+        <Text style={styles.logo}>DOUBLE YELLOW</Text>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity onPress={() => router.push('/profile')} activeOpacity={0.7} style={styles.statusIconBtn}>
+            <View style={styles.navIconWrap}>
+              <Ionicons name="person-outline" size={24} color="#555555" />
+              {unreadMessages > 0 && <View style={styles.navBadge} />}
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/settings')} activeOpacity={0.7} style={styles.statusIconBtn}>
+            <Ionicons name="settings-outline" size={24} color="#555555" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Status row */}
+      {/* Status row — INACTIVE sits just above yellow lines */}
       <View style={styles.statusRow}>
         <View style={[styles.statusDot, isParkedActive && styles.statusDotActive]} />
         <Text style={[styles.statusText, isParkedActive && styles.statusTextActive]}>
@@ -112,6 +125,14 @@ export default function HomeScreen() {
             </Animated.View>
             <Text style={[styles.cardLabel, styles.cardLabelActivated]}>ACTIVATED</Text>
             <Text style={styles.cardSub}>Protection active</Text>
+            {ticketExpiresAt && (
+              <View style={styles.timerBadge}>
+                <Ionicons name="timer-outline" size={13} color="#FFD700" />
+                <Text style={styles.timerBadgeText}>
+                  TICKET EXPIRES {ticketExpiresAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            )}
             <View style={styles.activeButtonRow}>
               <TouchableOpacity
                 style={styles.manageButton}
@@ -162,28 +183,9 @@ export default function HomeScreen() {
       </View>
 
       {/* Bottom double yellow lines */}
-      <View style={styles.dyLines}>
+      <View style={[styles.dyLines, { paddingBottom: Math.max(30, insets.bottom + 30) }]}>
         <View style={styles.dyLine} />
         <View style={styles.dyLine} />
-      </View>
-
-      {/* Bottom nav */}
-      <View style={styles.navBar}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')} activeOpacity={0.7}>
-          <View style={styles.navIconWrap}>
-            <Ionicons name="person-outline" size={20} color="#333333" />
-            {unreadMessages > 0 && <View style={styles.navBadge} />}
-          </View>
-          <Text style={styles.navLabel}>PROFILE</Text>
-        </TouchableOpacity>
-        <View style={styles.navItem}>
-          <View style={styles.navDotActive} />
-          <Text style={[styles.navLabel, styles.navLabelActive]}>HOME</Text>
-        </View>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/settings')} activeOpacity={0.7}>
-          <Ionicons name="settings-outline" size={20} color="#333333" />
-          <Text style={styles.navLabel}>SETTINGS</Text>
-        </TouchableOpacity>
       </View>
 
     </SafeAreaView>
@@ -199,11 +201,11 @@ const styles = StyleSheet.create({
   // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 48 : 16,
-    paddingBottom: 10,
+    paddingTop: Platform.OS === 'android' ? 52 : 22,
+    paddingBottom: 2,
   },
   logo: {
     fontSize: 13,
@@ -211,22 +213,12 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     color: '#FFD700',
   },
-  avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#333333',
+  headerIcons: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  avatarImage: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    borderColor: '#FFD700',
+  statusIconBtn: {
+    padding: 10,
   },
 
   // Status
@@ -235,6 +227,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 20,
+    paddingTop: 6,
     paddingBottom: 10,
   },
   statusDot: {
@@ -409,37 +402,24 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     color: '#444444',
   },
-
-  // Bottom nav
-  navBar: {
+  timerBadge: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
-    height: 56,
-    borderTopWidth: 1,
-    borderTopColor: '#1A1A1A',
+    gap: 5,
+    backgroundColor: '#1A1600',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  navDotActive: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#FFD700',
-  },
-  navLabel: {
-    fontSize: 8,
+  timerBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1.5,
-    color: '#333333',
-  },
-  navLabelActive: {
     color: '#FFD700',
+    letterSpacing: 1.5,
   },
+
   navIconWrap: {
     position: 'relative',
     alignItems: 'center',

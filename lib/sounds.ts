@@ -13,9 +13,9 @@ async function playSound(asset: number, overrideSilent = false): Promise<void> {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: overrideSilent,
       staysActiveInBackground: false,
-      shouldDuckAndroid: false,
+      shouldDuckAndroid: true,
     });
-    const { sound } = await Audio.Sound.createAsync(asset, { shouldPlay: true, volume: 1.0 });
+    const { sound } = await Audio.Sound.createAsync(asset, { shouldPlay: true, volume: 0.5 });
     activeSound = sound;
     sound.setOnPlaybackStatusUpdate((status) => {
       if (status.isLoaded && status.didJustFinish) {
@@ -62,7 +62,7 @@ export async function playAlertSent(): Promise<void> {
   setTimeout(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success), 480);
   // Fanfare and cheer play simultaneously — cheer slightly quieter so fanfare cuts through
   playSound(require('../assets/sounds/alert_sent.wav'), true);
-  playSoundLayer(require('../assets/sounds/cheer.wav'), 0.75);
+  playSoundLayer(require('../assets/sounds/cheer.wav'), 0.4);
 }
 
 /**
