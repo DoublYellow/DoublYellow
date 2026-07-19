@@ -69,6 +69,10 @@
       transition: color 0.2s;
     }
     .nav-links a:hover { color: var(--text); }
+    .nav-links a.nav-cta {
+      color: var(--yellow);
+    }
+    .nav-links a.nav-cta:hover { color: #fff; }
 
     /* ── HERO ── */
     .hero {
@@ -158,7 +162,7 @@
       align-self: center;
     }
 
-    /* ── HOW IT WORKS ── */
+    /* ── SECTIONS ── */
     section {
       padding: 96px 32px;
       max-width: 1000px;
@@ -176,11 +180,147 @@
       font-weight: 900;
       letter-spacing: 2px;
       color: var(--text);
-      margin-bottom: 56px;
+      margin-bottom: 20px;
       line-height: 1.1;
     }
     .section-title span { color: var(--yellow); }
+    .section-body {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.8;
+      max-width: 640px;
+      margin-bottom: 56px;
+    }
 
+    /* ── RAFFLE BANNER ── */
+    .raffle-strip {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 32px;
+    }
+    .raffle-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+    .raffle-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: var(--yellow);
+      margin-bottom: 16px;
+    }
+    .raffle-title {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+    .raffle-title span { color: var(--yellow); }
+    .raffle-body {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.8;
+      margin-bottom: 32px;
+    }
+    .raffle-tickets {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .ticket-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+    .ticket-icon { font-size: 20px; }
+    .ticket-plan {
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: var(--yellow);
+    }
+    .ticket-desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .ticket-count {
+      margin-left: auto;
+      font-size: 13px;
+      font-weight: 900;
+      color: var(--text);
+      letter-spacing: 1px;
+    }
+    .raffle-cta {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .raffle-cta::before {
+      content: '';
+      position: absolute;
+      top: -40px; left: -40px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(255,215,0,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .raffle-prize-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .raffle-prize {
+      font-size: clamp(36px, 6vw, 56px);
+      font-weight: 900;
+      color: var(--yellow);
+      letter-spacing: 2px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .raffle-prize-sub {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .raffle-note {
+      font-size: 11px;
+      color: var(--subtle);
+      letter-spacing: 0.5px;
+      line-height: 1.6;
+    }
+    .raffle-free-badge {
+      display: inline-block;
+      background: rgba(255,215,0,0.12);
+      border: 1px solid rgba(255,215,0,0.3);
+      color: var(--yellow);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+
+    /* ── HOW IT WORKS ── */
     .steps {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -222,6 +362,111 @@
       background: rgba(255,215,0,0.06);
     }
 
+    /* ── SCREENSHOTS ── */
+    .screenshots-outer {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 0 80px;
+      overflow: hidden;
+    }
+    .screenshots-header {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 32px;
+      margin-bottom: 48px;
+    }
+    .screenshots-scroll {
+      display: flex;
+      gap: 20px;
+      padding: 16px 32px 24px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      scroll-snap-type: x mandatory;
+    }
+    .screenshots-scroll::-webkit-scrollbar { display: none; }
+    .screenshot-card {
+      flex: 0 0 auto;
+      width: 200px;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .screenshot-frame {
+      width: 200px;
+      border-radius: 36px;
+      overflow: hidden;
+      background: #0a0a0a;
+      box-shadow:
+        0 0 0 2px #2a2a2a,
+        0 0 0 4px #111,
+        0 12px 40px rgba(0,0,0,0.7);
+      position: relative;
+    }
+    /* Notch bar at top */
+    .screenshot-frame::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 72px; height: 26px;
+      background: #0a0a0a;
+      border-bottom-left-radius: 14px;
+      border-bottom-right-radius: 14px;
+      z-index: 2;
+    }
+    /* Home indicator bar at bottom */
+    .screenshot-frame::after {
+      content: '';
+      position: absolute;
+      bottom: 8px; left: 50%;
+      transform: translateX(-50%);
+      width: 72px; height: 4px;
+      background: #333;
+      border-radius: 2px;
+      z-index: 2;
+    }
+    .screenshot-frame img {
+      width: 100%;
+      display: block;
+    }
+    .screenshot-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.4;
+    }
+    .screenshot-journey {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+    .journey-spot {
+      background: rgba(255,215,0,0.12);
+      color: var(--yellow);
+      border: 1px solid rgba(255,215,0,0.25);
+    }
+    .journey-protect {
+      background: rgba(230,57,70,0.12);
+      color: #ff6b6b;
+      border: 1px solid rgba(230,57,70,0.25);
+    }
+    .screenshots-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--subtle);
+      letter-spacing: 1px;
+      margin-top: 8px;
+    }
+
     /* ── FEATURES ── */
     .features-grid {
       display: grid;
@@ -249,6 +494,153 @@
       font-size: 13px;
       color: var(--muted);
       line-height: 1.7;
+    }
+
+    /* ── PRICING ── */
+    .pricing-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin: 32px 0;
+    }
+    .toggle-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .toggle-label.active { color: var(--yellow); }
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: var(--border);
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-switch.annual { background: var(--yellow); }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch.annual::after { transform: translateX(22px); }
+    .save-badge {
+      background: var(--yellow);
+      color: #0D0D0D;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 20px;
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .pricing-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+    }
+    .pricing-card.highlight {
+      border-color: var(--yellow);
+      background: #1A1A00;
+    }
+    .popular-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--yellow);
+      color: #0D0D0D;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      padding: 4px 14px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .pricing-name {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--text);
+    }
+    .pricing-card.highlight .pricing-name { color: var(--yellow); }
+    .pricing-amount {
+      font-size: 40px;
+      font-weight: 900;
+      color: var(--text);
+      line-height: 1;
+    }
+    .pricing-period {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .pricing-divider {
+      height: 1px;
+      background: var(--border);
+    }
+    .pricing-features {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+    .pricing-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: #CCCCCC;
+      letter-spacing: 0.3px;
+      line-height: 1.4;
+    }
+    .pricing-feature::before {
+      content: '✓';
+      color: var(--yellow);
+      font-weight: 900;
+      font-size: 12px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .pricing-cta {
+      display: block;
+      text-align: center;
+      padding: 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-decoration: none;
+      background: var(--border);
+      color: var(--text);
+      transition: opacity 0.2s;
+    }
+    .pricing-cta:hover { opacity: 0.85; }
+    .pricing-card.highlight .pricing-cta {
+      background: var(--yellow);
+      color: #0D0D0D;
     }
 
     /* ── STAT STRIP ── */
@@ -327,7 +719,7 @@
     }
 
     /* ── MOBILE ── */
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
       nav { padding: 14px 20px; }
       .nav-links { display: none; }
       .hero { padding: 100px 20px 60px; }
@@ -337,6 +729,12 @@
       .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
       footer { padding: 32px 20px; }
       .footer-inner { flex-direction: column; align-items: flex-start; }
+      .raffle-inner { grid-template-columns: 1fr; gap: 40px; }
+      .raffle-strip { padding: 64px 20px; }
+      .screenshots-header { padding: 0 20px; }
+      .screenshots-scroll { padding: 16px 20px 24px; }
+      .screenshot-card { width: 160px; }
+      .screenshot-frame { width: 160px; }
     }
   </style>
 </head>
@@ -345,8 +743,11 @@
   <nav>
     <a class="nav-logo" href="/">DOUBLEYELLOW</a>
     <ul class="nav-links">
+      <li><a href="#spot-and-win" class="nav-cta">🎟 WIN A PRIZE</a></li>
       <li><a href="#how-it-works">HOW IT WORKS</a></li>
+      <li><a href="#see-it">SCREENSHOTS</a></li>
       <li><a href="#features">FEATURES</a></li>
+          <li><a href="#pricing">PRICING</a></li>
       <li><a href="privacy.html">PRIVACY</a></li>
     </ul>
   </nav>
@@ -375,6 +776,68 @@
     </div>
   </div>
 
+  <!-- RAFFLE / SPOTTER COMMUNITY -->
+  <div class="raffle-strip" id="spot-and-win">
+    <div class="raffle-inner">
+      <div>
+        <p class="raffle-label">🎟 SPOT A WARDEN. WIN A PRIZE.</p>
+        <h2 class="raffle-title">BE PART OF THE<br><span>SPOTTER COMMUNITY.</span></h2>
+        <p class="raffle-body">
+          We're building a community of traffic warden spotters — ordinary people
+          looking out for their fellow drivers. When you spot a warden and report
+          it through Double Yellow, you alert everyone parked nearby and give them
+          the chance to move before a fine lands on their windscreen.
+        </p>
+        <p class="raffle-body">
+          Every driver you save earns you a raffle ticket. The more wardens you
+          spot, the more people you protect — and the more chances you have to win.
+          It costs nothing. Spotting is free, forever.
+        </p>
+        <div class="raffle-tickets">
+          <div class="ticket-row">
+            <span class="ticket-icon">🎟</span>
+            <div>
+              <div class="ticket-plan">LOOKOUT — FREE</div>
+              <div class="ticket-desc">1 raffle ticket for every driver you save</div>
+            </div>
+            <span class="ticket-count">1 per save</span>
+          </div>
+          <div class="ticket-row">
+            <span class="ticket-icon">🎟🎟</span>
+            <div>
+              <div class="ticket-plan">PRO</div>
+              <div class="ticket-desc">Double your chances with every spot</div>
+            </div>
+            <span class="ticket-count">2 per save</span>
+          </div>
+          <div class="ticket-row">
+            <span class="ticket-icon">🎟🎟🎟</span>
+            <div>
+              <div class="ticket-plan">UNLIMITED</div>
+              <div class="ticket-desc">Triple entries — maximum prize potential</div>
+            </div>
+            <span class="ticket-count">3 per save</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="raffle-cta">
+          <div class="raffle-free-badge">FREE TO ENTER</div>
+          <div class="raffle-prize-label">ANNUAL PRIZE DRAW</div>
+          <div class="raffle-prize">CASH<br>PRIZE</div>
+          <p class="raffle-prize-sub">
+            Awarded to a lucky member of<br>the Double Yellow community.<br>Prize to be announced.
+          </p>
+          <p class="raffle-note">
+            The more wardens you spot and the more drivers you save,
+            the more tickets you earn. Every ticket is a chance to win.
+            Open to all registered users. No purchase necessary.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- HOW IT WORKS -->
   <section id="how-it-works">
     <p class="section-label">HOW IT WORKS</p>
@@ -390,18 +853,138 @@
         <div class="step-accent"></div>
         <div class="step-num">02</div>
         <div class="step-title">COMMUNITY WATCHES</div>
-        <p class="step-body">Other Double Yellow users on the street can report wardens with a single tap — and earn points for doing it.</p>
+        <p class="step-body">Other Double Yellow users on the street report wardens with a single tap — earning raffle tickets for every driver they save.</p>
       </div>
       <div class="step">
         <div class="step-accent"></div>
         <div class="step-num">03</div>
         <div class="step-title">YOU GET ALERTED</div>
-        <p class="step-body">The moment a warden is spotted near your car, your phone alerts you instantly — giving you time to act.</p>
+        <p class="step-body">The moment a warden is spotted near your car, your phone alerts you instantly — giving you time to move before any fine can be issued.</p>
       </div>
     </div>
   </section>
 
   <div class="divider"></div>
+
+  <!-- SCREENSHOTS -->
+  <div class="screenshots-outer" id="see-it">
+    <div class="screenshots-header">
+      <p class="section-label">SEE IT IN ACTION</p>
+      <h2 class="section-title">THE APP.<br><span>IN YOUR POCKET.</span></h2>
+    </div>
+
+    <div class="screenshots-scroll">
+
+      <!-- Journey 1: Spotting a warden -->
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/home.png" alt="Double Yellow home screen" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-spot">SPOT A WARDEN</span>
+          <div class="screenshot-label">Home screen — park or report</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/report-warden.png" alt="Report a warden map" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-spot">SPOT A WARDEN</span>
+          <div class="screenshot-label">Drop a pin where you saw them</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/alert-sent.png" alt="Alert sent celebration screen" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-spot">SPOT A WARDEN</span>
+          <div class="screenshot-label">Alert sent — points earned</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/profile.png" alt="Profile and leaderboard" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-spot">SPOT A WARDEN</span>
+          <div class="screenshot-label">Your points, rank & leaderboard</div>
+        </div>
+      </div>
+
+      <!-- Divider card -->
+      <div class="screenshot-card" style="justify-content:center; align-items:center; width:60px; flex:0 0 60px">
+        <div style="height:2px; width:2px; background:var(--border); border-radius:50%"></div>
+      </div>
+
+      <!-- Journey 2: Being protected -->
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/not-activated.png" alt="Set your alert radius before activating" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-protect">BE PROTECTED</span>
+          <div class="screenshot-label">Tap I'VE PARKED — set your radius</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/activate.png" alt="Activated — community lookouts are go" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-protect">BE PROTECTED</span>
+          <div class="screenshot-label">Activated — community lookouts are go!</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/protection-active.png" alt="Home screen with protection active" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-protect">BE PROTECTED</span>
+          <div class="screenshot-label">Protection active — community on watch</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/alert-received.png" alt="Warden spotted alert" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-protect">BE PROTECTED</span>
+          <div class="screenshot-label">Warden spotted — 21m from your car</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/no-ticket.png" alt="No ticket celebration" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-protect">BE PROTECTED</span>
+          <div class="screenshot-label">NO TICKET! You got away with it</div>
+        </div>
+      </div>
+
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="screenshots/fight-ticket.png" alt="Fight your ticket guide" loading="lazy" />
+        </div>
+        <div style="text-align:center">
+          <span class="screenshot-journey journey-protect">BE PROTECTED</span>
+          <div class="screenshot-label">Got one? Fight it — 50% are overturned</div>
+        </div>
+      </div>
+
+    </div>
+    <p class="screenshots-hint">← SWIPE TO EXPLORE →</p>
+  </div>
 
   <!-- STAT STRIP -->
   <div class="stat-strip">
@@ -427,27 +1010,109 @@
         <p class="feature-body">Set your watch zone from 50m to 500m. Only get alerts that matter to you.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">⭐</div>
-        <div class="feature-title">POINTS &amp; RANKS</div>
-        <p class="feature-body">Earn points every time you report a warden. Climb from Tipster to Lookout Legend.</p>
+        <div class="feature-icon">🎟</div>
+        <div class="feature-title">PRIZE DRAW</div>
+        <p class="feature-body">Every driver you save earns you a raffle ticket. Spot more wardens, earn more entries, win the annual prize draw.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">📷</div>
         <div class="feature-title">PHOTO VERIFICATION</div>
-        <p class="feature-body">Add a photo to your report and earn double points — while giving the community greater confidence.</p>
+        <p class="feature-body">Add a photo to your report and earn bonus points — giving the community greater confidence in every alert.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">⏱</div>
-        <div class="feature-title">TICKET TIMER</div>
-        <p class="feature-body">Set a reminder for when your ticket expires. Get a notification 10 minutes before you need to move.</p>
+        <div class="feature-icon">⭐</div>
+        <div class="feature-title">POINTS &amp; RANKS</div>
+        <p class="feature-body">Earn points every time you report a warden. Climb from Tipster to Lookout Legend on the community leaderboard.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🏆</div>
-        <div class="feature-title">LEADERBOARD</div>
-        <p class="feature-body">See who's saving the most drivers in your area. Community spirit, powered by competition.</p>
+        <div class="feature-icon">⚖️</div>
+        <div class="feature-title">FIGHT YOUR TICKET</div>
+        <p class="feature-body">Got a fine anyway? Our in-app guide walks you through how to challenge it — around 50% of contested tickets are overturned.</p>
       </div>
     </div>
   </section>
+
+  <div class="divider"></div>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <p class="section-label">PLANS & PRICING</p>
+    <h2 class="section-title">PROTECTION THAT<br><span>PAYS FOR ITSELF.</span></h2>
+
+    <div class="pricing-toggle">
+      <span class="toggle-label active" id="label-monthly">MONTHLY</span>
+      <div class="toggle-switch" id="billing-toggle" onclick="toggleBilling()"></div>
+      <span class="toggle-label" id="label-annual">ANNUAL</span>
+      <span class="save-badge" id="save-badge" style="display:none">2 MONTHS FREE</span>
+    </div>
+
+    <div class="pricing-grid">
+
+      <div class="pricing-card highlight">
+        <div class="popular-badge">MOST POPULAR</div>
+        <div>
+          <div class="pricing-name">PRO</div>
+          <div class="pricing-amount" id="pro-price">£5.99</div>
+          <div class="pricing-period" id="pro-period">per month</div>
+        </div>
+        <div class="pricing-divider"></div>
+        <div class="pricing-features">
+          <div class="pricing-feature">1 activation per day</div>
+          <div class="pricing-feature">Priority alerts</div>
+          <div class="pricing-feature">Earned credits never expire</div>
+          <div class="pricing-feature">Push notifications & siren alert</div>
+          <div class="pricing-feature">Warden reporting & leaderboard</div>
+          <div class="pricing-feature">🎟 Prize draw entries</div>
+        </div>
+        <a class="pricing-cta" id="pro-link" href="https://buy.stripe.com/test_14AdR93FI7EF8Qngga3cc03" target="_blank" rel="noopener">SUBSCRIBE</a>
+      </div>
+
+      <div class="pricing-card">
+        <div>
+          <div class="pricing-name">UNLIMITED</div>
+          <div class="pricing-amount" id="unlimited-price">£14.99</div>
+          <div class="pricing-period" id="unlimited-period">per month</div>
+        </div>
+        <div class="pricing-divider"></div>
+        <div class="pricing-features">
+          <div class="pricing-feature">Unlimited activations</div>
+          <div class="pricing-feature">Active Track — GPS moves with you</div>
+          <div class="pricing-feature">Perfect for delivery & trade drivers</div>
+          <div class="pricing-feature">Priority alerts</div>
+          <div class="pricing-feature">Push notifications & siren alert</div>
+          <div class="pricing-feature">Warden reporting & leaderboard</div>
+          <div class="pricing-feature">🎟 Prize draw entries</div>
+          <div class="pricing-feature">Early access to new features</div>
+        </div>
+        <a class="pricing-cta" id="unlimited-link" href="https://buy.stripe.com/test_14A4gzdgigbb0jRaVQ3cc01" target="_blank" rel="noopener">SUBSCRIBE</a>
+      </div>
+
+    </div>
+    <p style="text-align:center; font-size:12px; color:var(--muted); margin-top:24px; letter-spacing:1px;">All prices include VAT · Cancel anytime · No commitment</p>
+  </section>
+
+  <script>
+    var isAnnual = false;
+    var links = {
+      proMonthly: 'https://buy.stripe.com/test_14AdR93FI7EF8Qngga3cc03',
+      proAnnual:  'https://buy.stripe.com/test_5kQ6oH2BE9MN3w3aVQ3cc02',
+      unlimitedMonthly: 'https://buy.stripe.com/test_14A4gzdgigbb0jRaVQ3cc01',
+      unlimitedAnnual:  'https://buy.stripe.com/test_00w9ATdgi6AB7Mj2pk3cc00',
+    };
+    function toggleBilling() {
+      isAnnual = !isAnnual;
+      document.getElementById('billing-toggle').classList.toggle('annual', isAnnual);
+      document.getElementById('label-monthly').classList.toggle('active', !isAnnual);
+      document.getElementById('label-annual').classList.toggle('active', isAnnual);
+      document.getElementById('save-badge').style.display = isAnnual ? 'inline-block' : 'none';
+      document.getElementById('pro-price').textContent = isAnnual ? '£59' : '£5.99';
+      document.getElementById('pro-period').textContent = isAnnual ? 'per year — save £12.88' : 'per month';
+      document.getElementById('unlimited-price').textContent = isAnnual ? '£149' : '£14.99';
+      document.getElementById('unlimited-period').textContent = isAnnual ? 'per year — save £30.88' : 'per month';
+      document.getElementById('pro-link').href = isAnnual ? links.proAnnual : links.proMonthly;
+      document.getElementById('unlimited-link').href = isAnnual ? links.unlimitedAnnual : links.unlimitedMonthly;
+    }
+  </script>
 
   <div class="divider"></div>
 
@@ -457,7 +1122,7 @@
       <span class="footer-logo">DOUBLEYELLOW</span>
       <ul class="footer-links">
         <li><a href="privacy.html">Privacy Policy</a></li>
-        <li><a href="mailto:doublyellowapp@gmail.com">Support</a></li>
+        <li><a href="mailto:contact@pluckyfilms.co.uk">Support</a></li>
       </ul>
     </div>
     <p class="footer-copy">© 2026 Double Yellow. All rights reserved.</p>
